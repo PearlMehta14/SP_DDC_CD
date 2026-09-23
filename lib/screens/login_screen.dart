@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../utils/responsive.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -27,8 +28,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       var email = _emailController.text.trim();
       if (!email.contains('@')) {
-        email = '$email@ddcdiamonds.local';
+        email = '$email@ddcdiamonds.com';
       }
+
       
       final success = await ref.read(authProvider.notifier).login(
         email,
@@ -48,14 +50,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       backgroundColor: Colors.white,
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          padding: EdgeInsets.symmetric(horizontal: Responsive.horizontalPadding(context), vertical: 24.0),
+          child: Responsive.constrainedForm(
+            context,
+            Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Image.asset(
-                  'assets/images/logo.jpeg',
+                  'assets/images/logo_bgremoved.png',
                   width: 150,
                   height: 150,
                 ),
@@ -198,6 +202,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

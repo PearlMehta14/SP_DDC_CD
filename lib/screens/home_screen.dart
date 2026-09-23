@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:decimal/decimal.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../utils/responsive.dart';
+import '../utils/date_formatter.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -14,7 +16,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = AppDateFormatter.nowIST();
   bool _isLoading = true;
   String? _error;
   Map<String, dynamic>? _metrics;
@@ -33,7 +35,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final todayStr = AppDateFormatter.currentISTDateStr();
       
       final endpoint = dateStr == todayStr 
           ? '/api/v1/dashboard/today' 
@@ -113,13 +115,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
-    final isToday = DateFormat('yyyy-MM-dd').format(_selectedDate) == DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final isToday = DateFormat('yyyy-MM-dd').format(_selectedDate) == AppDateFormatter.currentISTDateStr();
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAF8),
       appBar: AppBar(
         title: const Text(
-          'DDC DIAMONDS',
+          'SP IMPEX | CD STAR | DDC DIAMONDS',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             letterSpacing: 1.5,
@@ -141,10 +143,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         color: const Color(0xFFD4AF37),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          padding: EdgeInsets.symmetric(horizontal: Responsive.horizontalPadding(context), vertical: 24.0),
+          child: Responsive.constrainedForm(
+            context,
+            maxWidth: 1000.0,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               // Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -184,7 +189,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   Image.asset(
-                    'assets/images/logo.jpeg',
+                    'assets/images/logo_bgremoved.png',
                     width: 100,
                     height: 100,
                   ),
@@ -216,79 +221,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ],
                   ),
                 )
-              else if (_metrics != null && _metrics!['available_stock_count'] == 0 && _metrics!['stock_added_today'] == 0 && _metrics!['stock_removed_today'] == 0)
-                // Empty State
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 32),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E5E5)),
-                  ),
-                  child: const Column(
-                    children: [
-                      Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFE5E5E5)),
-                      SizedBox(height: 16),
-                      Text(
-                        'No stock recorded',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'No stock has been added for this date.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFF6B6B6B)),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                // Metrics
+              else if (_metrics != null)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Main Value Card
                     _buildValueCard(
-                      'TOTAL STOCK VALUE',
-                      _formatCurrency(_metrics!['total_value'] ?? '0'),
+                      'STOCK TOTAL + REJECTION TOTAL',
+                      _formatCurrency(_metrics!['current_stock_worth'] ?? '0'),
                     ),
                     const SizedBox(height: 16),
                     
                     // Grid Metrics
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMetricCard(
-                            'AVAILABLE STOCK',
-                            '${_metrics!['available_stock_count'] ?? 0}',
-                            'Items',
+                    Responsive.isMobile(context)
+                    ? Column(
+                        children: [
+                          _buildMetricCard(
+                            'STOCK ADDED',
+                            _formatCurrency(_metrics!['stock_added_value'] ?? '0'),
+                            Colors.green.shade600,
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildMetricCard(
-                            'TOTAL KARAT',
-                            _formatKarat(_metrics!['total_karat'] ?? '0'),
-                            'Ct',
+                          const SizedBox(height: 16),
+                          _buildMetricCard(
+                            'STOCK SUBTRACTED',
+                            _formatCurrency(_metrics!['stock_subtracted_value'] ?? '0'),
+                            Colors.red.shade600,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMetricCard(
-                      'TOTAL QUANTITY',
-                      '${_metrics!['total_quantity'] ?? 0}',
-                      'Pcs',
-                    ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: _buildMetricCard(
+                              'STOCK ADDED',
+                              _formatCurrency(_metrics!['stock_added_value'] ?? '0'),
+                              Colors.green.shade600,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildMetricCard(
+                              'STOCK SUBTRACTED',
+                              _formatCurrency(_metrics!['stock_subtracted_value'] ?? '0'),
+                              Colors.red.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
                     const SizedBox(height: 32),
 
-                    // Today's Movement
+                    // Today's Movements
                     const Text(
-                      "TODAY'S STOCK",
+                      "TODAY'S MOVEMENTS",
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -297,46 +281,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE5E5E5)),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildMovementRow(
-                            'Added Today', 
-                            '+ ${_metrics!['stock_added_today'] ?? 0}',
-                            const Color(0xFFD4AF37)
+                    
+                    if ((_metrics!['movements'] as List).isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 32),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE5E5E5)),
+                        ),
+                        child: const Center(
+                          child: Text('No movements recorded today', style: TextStyle(color: Color(0xFF6B6B6B))),
+                        ),
+                      )
+                    else
+                      ...(_metrics!['movements'] as List).map((m) {
+                        final isAdd = m['movement_type'] == 'ADDED';
+                        final color = isAdd ? Colors.green.shade600 : Colors.red.shade600;
+                        final effectiveChange = (m['change_karat'] + m['change_cent'] / 100.0).toStringAsFixed(2);
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE5E5E5)),
                           ),
-                          const Divider(height: 24, color: Color(0xFFE5E5E5)),
-                          _buildMovementRow(
-                            'Removed Today', 
-                            '- ${_metrics!['stock_removed_today'] ?? 0}',
-                            Colors.red.shade400
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(m['product_tag'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                  Text('${isAdd ? '+' : '-'}$effectiveChange KT @ ₹${m['applicable_price_per_karat']}/Kt', style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(AppDateFormatter.formatDateTime(m['changed_at']), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                  Text('Value: ${_formatCurrency(m['total_value'])}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ],
                           ),
-                          const Divider(height: 24, color: Color(0xFFE5E5E5)),
-                          _buildMovementRow(
-                            'Price Changes Today', 
-                            '${_metrics!['price_changes_today'] ?? 0}',
-                            Colors.blue.shade600
-                          ),
-                          const Divider(height: 24, color: Color(0xFFE5E5E5)),
-                          _buildMovementRow(
-                            'Current Available', 
-                            '${_metrics!['available_stock_count'] ?? 0}',
-                            const Color(0xFF1A1A1A)
-                          ),
-                        ],
-                      ),
-                    ),
+                        );
+                      }),
                   ],
                 ),
 
               const SizedBox(height: 32),
             ],
+          ),
           ),
         ),
       ),
@@ -347,11 +345,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFFD4AF37),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E5E5)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -365,16 +364,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               fontSize: 12,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
-              color: Colors.white70,
+              color: Colors.black54,
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
             ),
           ),
         ],
@@ -382,7 +384,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildMetricCard(String title, String value, String unit) {
+  Widget _buildMetricCard(String title, String value, Color titleColor) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -395,64 +397,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 12,
+            style: TextStyle(
+              fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.0,
-              color: Color(0xFF6B6B6B),
+              color: titleColor,
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A1A),
-                ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A1A1A),
               ),
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  unit,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFB8860B),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMovementRow(String label, String value, Color valueColor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            color: Color(0xFF6B6B6B),
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: valueColor,
-          ),
-        ),
-      ],
     );
   }
 }

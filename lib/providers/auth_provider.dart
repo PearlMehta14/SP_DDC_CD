@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/auth_service.dart';
 
 class AuthState {
@@ -6,20 +7,47 @@ class AuthState {
   final bool isInitializing;
   final Map<String, dynamic>? user;
   final String? error;
+  
+  // Security fields
+  final bool isLocked;
+  final bool hasPin;
+  final bool useBiometrics;
 
-  AuthState({this.isLoading = false, this.isInitializing = true, this.user, this.error});
+  AuthState({
+    this.isLoading = false,
+    this.isInitializing = true,
+    this.user,
+    this.error,
+    this.isLocked = false,
+    this.hasPin = false,
+    this.useBiometrics = false,
+  });
 
-  AuthState copyWith({bool? isLoading, bool? isInitializing, Map<String, dynamic>? user, String? error, bool clearError = false}) {
+  AuthState copyWith({
+    bool? isLoading,
+    bool? isInitializing,
+    Map<String, dynamic>? user,
+    String? error,
+    bool clearError = false,
+    bool? isLocked,
+    bool? hasPin,
+    bool? useBiometrics,
+  }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
       isInitializing: isInitializing ?? this.isInitializing,
       user: user ?? this.user,
       error: clearError ? null : (error ?? this.error),
+      isLocked: isLocked ?? this.isLocked,
+      hasPin: hasPin ?? this.hasPin,
+      useBiometrics: useBiometrics ?? this.useBiometrics,
     );
   }
 }
 
 class AuthNotifier extends Notifier<AuthState> {
+  final _storage = const FlutterSecureStorage();
+
   @override
   AuthState build() {
     Future.microtask(() => checkSession());
@@ -35,7 +63,25 @@ class AuthNotifier extends Notifier<AuthState> {
         Future.delayed(const Duration(seconds: 2)),
       ]);
       final user = results[0] as Map<String, dynamic>?;
-      state = state.copyWith(isLoading: false, isInitializing: false, user: user);
+      
+      // Check security settings
+      final pin = await _storage.read(key: 'app_pin');
+      final bio = await _storage.read(key: 'use_biometrics');
+      
+      final hasPin = pin != null && pin.isNotEmpty;
+      final useBio = bio == 'true';
+      
+      // If user is logged in and PIN is set, lock the app
+      final isLocked = (user != null && hasPin);
+      
+      state = state.copyWith(
+        isLoading: false,
+        isInitializing: false,
+        user: user,
+        hasPin: hasPin,
+        useBiometrics: useBio,
+        isLocked: isLocked,
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, isInitializing: false, error: e.toString());
     }
@@ -45,18 +91,90 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final user = await authService.login(email, password);
-      state = state.copyWith(isLoading: false, user: user);
+      
+      final pin = await _storage.read(key: 'app_pin');
+      final bio = await _storage.read(key: 'use_biometrics');
+      
+      final hasPin = pin != null && pin.isNotEmpty;
+      final useBio = bio == 'true';
+      final isLocked = hasPin;
+      
+      state = state.copyWith(
+        isLoading: false, 
+        user: user,
+        hasPin: hasPin,
+        useBiometrics: useBio,
+        isLocked: isLocked,
+      );
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      String errorMessage = 'Invalid login';
+      if (e.toString().contains('SocketException') || e.toString().contains('Connection refused') || e.toString().contains('ClientException')) {
+        errorMessage = 'Network error: Cannot reach server.';
+      } else if (e.toString().contains('Exception: ')) {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     }
   }
 
   Future<void> logout() async {
-    state = state.copyWith(isLoading: true);
-    await authService.logout();
-    state = AuthState(isInitializing: false); // reset to unauthenticated
+    state = AuthState(isInitializing: false); // reset to unauthenticated instantly
+    try {
+      await authService.logout();
+    } catch (_) {}
+  }
+  
+  // Security Methods
+  
+  void lockApp() {
+    if (state.user != null && state.hasPin) {
+      state = state.copyWith(isLocked: true);
+    }
+  }
+  
+  Future<bool> unlock(String enteredPin) async {
+    final pin = await _storage.read(key: 'app_pin');
+    if (pin == enteredPin) {
+      state = state.copyWith(isLocked: false);
+      return true;
+    }
+    return false;
+  }
+  
+  void unlockWithBiometrics() {
+    state = state.copyWith(isLocked: false);
+  }
+  
+  Future<void> setPin(String newPin) async {
+    await _storage.write(key: 'app_pin', value: newPin);
+    state = state.copyWith(hasPin: true);
+  }
+  
+  Future<bool> changePin(String currentPin, String newPin) async {
+    final pin = await _storage.read(key: 'app_pin');
+    if (pin == currentPin) {
+      await _storage.write(key: 'app_pin', value: newPin);
+      return true;
+    }
+    return false;
+  }
+  
+  Future<bool> removePin(String currentPin) async {
+    final pin = await _storage.read(key: 'app_pin');
+    if (pin == currentPin) {
+      await _storage.delete(key: 'app_pin');
+      await _storage.delete(key: 'use_biometrics');
+      state = state.copyWith(hasPin: false, useBiometrics: false, isLocked: false);
+      return true;
+    }
+    return false;
+  }
+  
+  Future<void> setBiometrics(bool use) async {
+    await _storage.write(key: 'use_biometrics', value: use.toString());
+    state = state.copyWith(useBiometrics: use);
   }
 }
 

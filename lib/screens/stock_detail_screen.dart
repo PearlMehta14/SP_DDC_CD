@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
+import '../utils/date_formatter.dart';
 
 class StockDetailScreen extends StatefulWidget {
   final String stockId;
@@ -59,120 +59,6 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
     }
   }
 
-  Future<void> _changeQuantity() async {
-    final qtyController = TextEditingController();
-    final reasonController = TextEditingController();
-    
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Adjust Quantity'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Current Quantity: ${_stock!['current_quantity']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            const Text('Enter adjustment (e.g. +5 or -3):'),
-            TextField(
-              controller: qtyController,
-              keyboardType: const TextInputType.numberWithOptions(signed: true),
-              decoration: const InputDecoration(labelText: 'Change Amount'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(labelText: 'Reason (Required)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => context.pop(false), child: const Text('CANCEL')),
-          ElevatedButton(
-            onPressed: () => context.pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC5A059)),
-            child: const Text('SAVE'),
-          ),
-        ],
-      )
-    );
-
-    if (result == true) {
-      final changeStr = qtyController.text.trim();
-      final reason = reasonController.text.trim();
-      
-      if (changeStr.isEmpty || reason.isEmpty) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Both change amount and reason are required.')));
-        return;
-      }
-
-      final changeQty = int.tryParse(changeStr);
-      if (changeQty != null) {
-        setState(() => _isLoading = true);
-        final response = await apiService.updateStockQuantity(widget.stockId, changeQty, reason: reason);
-        if (response.statusCode != 200) {
-          final error = jsonDecode(response.body)['detail'] ?? 'Failed to adjust quantity';
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
-        }
-        _loadData();
-      }
-    }
-  }
-
-  Future<void> _changePrice() async {
-    final priceController = TextEditingController(text: _stock!['current_price_per_karat'].toString());
-    final reasonController = TextEditingController();
-    
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Price/Karat'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Current Price/Karat: ₹${_stock!['current_price_per_karat']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: priceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'New Price/Karat'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(labelText: 'Reason (Required)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => context.pop(false), child: const Text('CANCEL')),
-          ElevatedButton(
-            onPressed: () => context.pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC5A059)),
-            child: const Text('SAVE'),
-          ),
-        ],
-      )
-    );
-
-    if (result == true) {
-      final newPrice = priceController.text.trim();
-      final reason = reasonController.text.trim();
-      if (newPrice.isNotEmpty && reason.isNotEmpty) {
-        setState(() => _isLoading = true);
-        final response = await apiService.updateStockPrice(widget.stockId, newPrice, reason: reason);
-        if (response.statusCode != 200) {
-          final error = jsonDecode(response.body)['detail'] ?? 'Failed to change price';
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
-        }
-        _loadData();
-      } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Both new price and reason are required.')));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -219,28 +105,13 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
         children: [
           _buildHeader(),
           const SizedBox(height: 24),
-          _buildSection('CURRENT', [
-            _buildInfoRow('Current Quantity', '${_stock!['current_quantity']}', onEdit: _changeQuantity, isHighlight: true),
-            _buildInfoRow('Current Price/Karat', '₹${_stock!['current_price_per_karat']}', onEdit: _changePrice, isHighlight: true),
+          _buildSection('CURRENT STOCK', [
+            _buildInfoRow('Stock Amount', '${(_stock!['karat'] + _stock!['cent'] / 100.0).toStringAsFixed(2)} KT', isHighlight: true),
+            _buildInfoRow('Current Price/Karat', '₹${_stock!['current_price_per_karat']}', isHighlight: true),
             _buildInfoRow('Status', '${_stock!['status']}'),
           ]),
-          _buildSection('BASE', [
-            _buildInfoRow('Base Price/Karat', '₹${_stock!['current_price_per_karat']}'),
+          _buildSection('PRICING', [
             _buildInfoRow('Base Total', '₹${_stock!['base_total_amount']}'),
-          ]),
-          _buildSection('LESS', [
-            _buildInfoRow('Less %', '${_stock!['less_percentage']}%'),
-            _buildInfoRow('Less Price/Karat', '₹${_stock!['less_price_per_karat']}'),
-            _buildInfoRow('Less Total', '₹${_stock!['less_total_amount']}'),
-          ]),
-          _buildSection('BROKERAGE', [
-            _buildInfoRow('Brokerage %', '${_stock!['brokerage_percentage']}%'),
-            _buildInfoRow('Brok Price/Karat', '₹${_stock!['brokerage_price_per_karat']}'),
-            _buildInfoRow('Brok Total', '₹${_stock!['brokerage_total_amount']}'),
-          ]),
-          _buildSection('FINAL', [
-            _buildInfoRow('Final Price/Karat', '₹${_stock!['final_price_per_karat']}', isHighlight: true, highlightColor: const Color(0xFFC5A059)),
-            _buildInfoRow('Final Total Amount', '₹${_stock!['final_total_amount']}', isHighlight: true, isLarge: true, highlightColor: const Color(0xFFC5A059)),
           ], isPremium: true),
         ],
       ),
@@ -258,22 +129,24 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
         const SizedBox(height: 8),
         Row(
           children: [
-            _buildTag('Karat: ${_stock!['karat']} Kt'),
+            _buildTag('Stock: ${(_stock!['karat'] + _stock!['cent'] / 100.0).toStringAsFixed(2)} KT'),
             const SizedBox(width: 8),
-            _buildTag('VVS: ${_stock!['vvs_white'] ?? 'N/A'}'),
+            if (_stock!['vvs_white'] != null && _stock!['vvs_white'].toString().isNotEmpty) _buildTag('HAWA: ${_stock!['vvs_white']}'),
             const SizedBox(width: 8),
-            _buildTag('Hawai: ${_stock!['hawai_vvs'] ?? 'N/A'}'),
+            if (_stock!['hawai_vvs'] != null && _stock!['hawai_vvs'].toString().isNotEmpty) _buildTag('AIR: ${_stock!['hawai_vvs']}'),
           ],
         ),
-        if (_stock!['quality_cat_1'] != null || _stock!['quality_cat_2'] != null || _stock!['quality_cat_3'] != null) ...[
+        if ((_stock!['quality_cat_1'] != null && _stock!['quality_cat_1'].toString().isNotEmpty) || 
+            (_stock!['quality_cat_2'] != null && _stock!['quality_cat_2'].toString().isNotEmpty) || 
+            (_stock!['quality_cat_3'] != null && _stock!['quality_cat_3'].toString().isNotEmpty)) ...[
           const SizedBox(height: 8),
           Row(
             children: [
-              if (_stock!['quality_cat_1'] != null) _buildTag('C1: ${_stock!['quality_cat_1']}'),
+              if (_stock!['quality_cat_1'] != null && _stock!['quality_cat_1'].toString().isNotEmpty) _buildTag('ORN: ${_stock!['quality_cat_1']}'),
               const SizedBox(width: 8),
-              if (_stock!['quality_cat_2'] != null) _buildTag('C2: ${_stock!['quality_cat_2']}'),
+              if (_stock!['quality_cat_2'] != null && _stock!['quality_cat_2'].toString().isNotEmpty) _buildTag('COLL: ${_stock!['quality_cat_2']}'),
               const SizedBox(width: 8),
-              if (_stock!['quality_cat_3'] != null) _buildTag('C3: ${_stock!['quality_cat_3']}'),
+              if (_stock!['quality_cat_3'] != null && _stock!['quality_cat_3'].toString().isNotEmpty) _buildTag('Q1: ${_stock!['quality_cat_3']}'),
             ],
           ),
         ]
@@ -338,8 +211,8 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value, {VoidCallback? onEdit, bool isHighlight = false, Color highlightColor = Colors.black, bool isLarge = false}) {
-    return Padding(
+  Widget _buildInfoRow(String label, String value, {bool isHighlight = false, Color highlightColor = Colors.black, bool isLarge = false, VoidCallback? onTap}) {
+    Widget row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -355,26 +228,29 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
                   color: isHighlight ? highlightColor : Colors.black87,
                 ),
               ),
-              if (onEdit != null) ...[
+              if (onTap != null) ...[
                 const SizedBox(width: 8),
-                InkWell(
-                  onTap: onEdit,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF9E8),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(Icons.edit, size: 16, color: Color(0xFFC5A059)),
-                  ),
-                ),
-              ],
+                const Icon(Icons.edit, size: 16, color: Color(0xFFC5A059)),
+              ]
             ],
           ),
         ],
       ),
     );
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+          child: row,
+        ),
+      );
+    }
+    return row;
   }
+
+
 
   Widget _buildHistoryTab() {
     return DefaultTabController(
@@ -389,7 +265,7 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
               indicatorColor: Colors.black,
               labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               tabs: [
-                Tab(text: 'QUANTITY'),
+                Tab(text: 'STOCK'),
                 Tab(text: 'PRICE'),
               ],
             ),
@@ -397,7 +273,7 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
           Expanded(
             child: TabBarView(
               children: [
-                _buildQuantityHistory(),
+                _buildKaratHistory(),
                 _buildPriceHistory(),
               ],
             ),
@@ -407,9 +283,9 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
     );
   }
 
-  Widget _buildQuantityHistory() {
+  Widget _buildKaratHistory() {
     final movements = _history!['movements'] as List<dynamic>;
-    if (movements.isEmpty) return const Center(child: Text('No quantity movements.'));
+    if (movements.isEmpty) return const Center(child: Text('No stock movements.'));
 
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -417,19 +293,18 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
       separatorBuilder: (context, index) => const Divider(),
       itemBuilder: (context, index) {
         final m = movements[index];
-        final isAdd = m['change_quantity'] > 0;
-        final change = isAdd ? '+${m['change_quantity']}' : '${m['change_quantity']}';
-        final color = isAdd ? Colors.green.shade600 : Colors.red.shade600;
+        final isAdd = m['movement_type'] == 'ADDED';
+        final effectiveChange = (m['change_karat'] + m['change_cent'] / 100.0).toStringAsFixed(2);
+        final changeStr = (isAdd ? '+' : '-') + '$effectiveChange KT';
+
+        final prevVal = (m['previous_karat'] + m['previous_cent'] / 100.0).toStringAsFixed(2);
+        final newVal = (m['new_karat'] + m['new_cent'] / 100.0).toStringAsFixed(2);
 
         return ListTile(
           contentPadding: EdgeInsets.zero,
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Qty: ${m['previous_quantity']} → ${m['new_quantity']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(change, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
+          leading: CircleAvatar(backgroundColor: isAdd ? Colors.green.shade50 : Colors.red.shade50, child: Icon(isAdd ? Icons.arrow_upward : Icons.arrow_downward, color: isAdd ? Colors.green : Colors.red)),
+          title: Text('$prevVal KT → $newVal KT', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          trailing: Text(changeStr, style: TextStyle(color: isAdd ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 14)),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 8.0),
             child: Column(
@@ -437,7 +312,7 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
               children: [
                 Text('Reason: ${m['reason']}'),
                 const SizedBox(height: 4),
-                Text('By: ${m['changed_by']} • ${DateTime.parse(m['changed_at']).toLocal().toString().split('.')[0]}', style: const TextStyle(fontSize: 12)),
+                Text('By: ${m['changed_by']} • ${AppDateFormatter.formatDateTime(m['changed_at'])}', style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),
@@ -467,7 +342,7 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
               children: [
                 Text('Reason: ${p['reason']}'),
                 const SizedBox(height: 4),
-                Text('By: ${p['changed_by']} • ${DateTime.parse(p['changed_at']).toLocal().toString().split('.')[0]}', style: const TextStyle(fontSize: 12)),
+                Text('By: ${p['changed_by']} • ${AppDateFormatter.formatDateTime(p['changed_at'])}', style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),

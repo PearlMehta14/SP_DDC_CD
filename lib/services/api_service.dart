@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
   final _storage = const FlutterSecureStorage();
-  String _baseUrl = 'http://127.0.0.1:8000'; // ADB Reverse proxy
+  String _baseUrl = 'http://192.168.29.101:8000'; // Connect to laptop over WiFi
   
   set baseUrl(String url) => _baseUrl = url;
 
@@ -60,9 +60,16 @@ class ApiService {
     );
   }
 
-  Future<http.Response> updateStockQuantity(String id, int changeQuantity, {String? reason}) {
-    return post('/api/v1/stock/$id/quantity', {
-      'change_quantity': changeQuantity,
+  Future<http.Response> updateStockKarat(String id, String newKarat, {String? reason}) {
+    return post('/api/v1/stock/$id/karat', {
+      'new_karat': newKarat,
+      if (reason != null) 'reason': reason,
+    });
+  }
+
+  Future<http.Response> updateStockVersion(String id, String newKarat, {String? reason}) {
+    return post('/api/v1/stock/$id/version', {
+      'new_karat': newKarat,
       if (reason != null) 'reason': reason,
     });
   }
@@ -72,6 +79,38 @@ class ApiService {
       'new_price_per_karat': newPrice,
       if (reason != null) 'reason': reason,
     });
+  }
+
+  Future<http.Response> getStockReport({
+    String? stockCategory,
+    String? stockType,
+    String? productTag,
+    String? stockTag,
+  }) {
+    final queryParams = <String, String>{};
+    if (stockCategory != null && stockCategory.toUpperCase() != 'ALL') queryParams['stock_category'] = stockCategory;
+    if (stockType != null && stockType.toUpperCase() != 'ALL') queryParams['stock_type'] = stockType;
+    if (productTag != null && productTag.toUpperCase() != 'ALL') queryParams['product_tag'] = productTag;
+    if (stockTag != null) queryParams['stock_tag'] = stockTag;
+    
+    final uri = Uri(path: '/api/v1/reports/stock', queryParameters: queryParams.isNotEmpty ? queryParams : null);
+    return get(uri.toString());
+  }
+
+  Future<http.Response> getRejectionReport({
+    String? stockCategory,
+    String? stockType,
+    String? productTag,
+    String? stockTag,
+  }) {
+    final queryParams = <String, String>{};
+    if (stockCategory != null && stockCategory.toUpperCase() != 'ALL') queryParams['stock_category'] = stockCategory;
+    if (stockType != null && stockType.toUpperCase() != 'ALL') queryParams['stock_type'] = stockType;
+    if (productTag != null && productTag.toUpperCase() != 'ALL') queryParams['product_tag'] = productTag;
+    if (stockTag != null) queryParams['stock_tag'] = stockTag;
+    
+    final uri = Uri(path: '/api/v1/reports/rejection', queryParameters: queryParams.isNotEmpty ? queryParams : null);
+    return get(uri.toString());
   }
 
   Future<http.Response> getStockHistory(String id) {
@@ -84,6 +123,10 @@ class ApiService {
 
   Future<http.Response> getDailyHistory(String date) {
     return get('/api/v1/stock/history', queryParameters: {'date': date});
+  }
+
+  Future<http.Response> getLogs() {
+    return get('/api/v1/stock/logs');
   }
 }
 

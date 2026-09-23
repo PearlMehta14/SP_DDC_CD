@@ -19,6 +19,10 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   decimal: ^3.2.6
   intl: ^0.20.3
+  excel: ^4.0.6
+  pdf: ^3.12.0
+  path_provider: ^2.1.5
+  share_plus: ^12.0.2
 
 dev_dependencies:
   image: ^4.1.4
@@ -30,13 +34,13 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/logo.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/logo.png"
+  image_path: "assets/images/appicon_padded.png"
+  adaptive_icon_background: "#182135"
+  adaptive_icon_foreground: "assets/images/appicon_padded.png"
   min_sdk_android: 21
 
 flutter:
   uses-material-design: true
   assets:
     - .env
-    - assets/images/logo.jpeg
+    - assets/images/logo_bgremoved.png
