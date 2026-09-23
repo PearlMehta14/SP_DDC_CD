@@ -1,63 +1,127 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
   final _storage = const FlutterSecureStorage();
-  String _baseUrl = 'http://192.168.29.101:8000'; // Connect to laptop over WiFi
+  String _customBaseUrl = '';
   
-  set baseUrl(String url) => _baseUrl = url;
+  set baseUrl(String url) => _customBaseUrl = url;
+
+  /// Returns the production API Base URL from .env or fallback
+  String get baseUrl {
+    if (_customBaseUrl.isNotEmpty) {
+      String url = _customBaseUrl.trim();
+      if (url.endsWith('/')) url = url.substring(0, url.length - 1);
+      return url;
+    }
+    final envUrl = dotenv.env['API_BASE_URL'];
+    if (envUrl != null && envUrl.trim().isNotEmpty) {
+      String url = envUrl.trim();
+      if (url.endsWith('/')) url = url.substring(0, url.length - 1);
+      return url;
+    }
+    return 'https://sp-ddc-cd.onrender.com';
+  }
+
+  /// Checks lightweight GET /health endpoint to verify backend connectivity
+  Future<bool> checkHealth() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/health'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body is Map && body['status'] == 'ok') {
+          return true;
+        }
+      }
+      // Non-500 HTTP responses mean the server is running & reachable
+      if (response.statusCode < 500) {
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Helper wrapper that executes HTTP requests and handles network/socket exceptions
+  Future<http.Response> _safeRequest(Future<http.Response> Function() req) async {
+    try {
+      return await req().timeout(const Duration(seconds: 15));
+    } on SocketException catch (_) {
+      throw Exception('Network Connectivity Error: No internet or Wi-Fi connection. Please check your network settings.');
+    } on TimeoutException catch (_) {
+      throw Exception('Network Error: Connection timed out. Server is taking too long to respond. Please retry.');
+    } on http.ClientException catch (_) {
+      throw Exception('Network Error: Cannot connect to server. Please ensure Wi-Fi or network connection is active.');
+    } catch (e) {
+      final str = e.toString().toLowerCase();
+      if (str.contains('socketexception') || 
+          str.contains('connection refused') || 
+          str.contains('clientexception') ||
+          str.contains('network is unreachable')) {
+        throw Exception('Network Connectivity Error: Unable to reach server. Please verify Wi-Fi/Internet connection.');
+      }
+      rethrow;
+    }
+  }
 
   Future<http.Response> post(String endpoint, Map<String, dynamic> body) async {
     final token = await _storage.read(key: 'jwt_token');
 
-    return http.post(
-      Uri.parse('$_baseUrl$endpoint'),
+    return _safeRequest(() => http.post(
+      Uri.parse('$baseUrl$endpoint'),
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
       body: jsonEncode(body),
-    );
+    ));
   }
 
   Future<http.Response> patch(String endpoint, Map<String, dynamic> body) async {
     final token = await _storage.read(key: 'jwt_token');
 
-    return http.patch(
-      Uri.parse('$_baseUrl$endpoint'),
+    return _safeRequest(() => http.patch(
+      Uri.parse('$baseUrl$endpoint'),
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
       body: jsonEncode(body),
-    );
+    ));
   }
 
   Future<http.Response> delete(String endpoint) async {
     final token = await _storage.read(key: 'jwt_token');
 
-    return http.delete(
-      Uri.parse('$_baseUrl$endpoint'),
+    return _safeRequest(() => http.delete(
+      Uri.parse('$baseUrl$endpoint'),
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-    );
+    ));
   }
 
   Future<http.Response> get(String endpoint, {Map<String, String>? queryParameters}) async {
     final token = await _storage.read(key: 'jwt_token');
+    final uri = Uri.parse('$baseUrl$endpoint').replace(queryParameters: queryParameters);
 
-    final uri = Uri.parse('$_baseUrl$endpoint').replace(queryParameters: queryParameters);
-
-    return http.get(
+    return _safeRequest(() => http.get(
       uri,
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-    );
+    ));
   }
 
   Future<http.Response> updateStockKarat(String id, String newKarat, {String? reason}) {
@@ -127,6 +191,38 @@ class ApiService {
 
   Future<http.Response> getLogs() {
     return get('/api/v1/stock/logs');
+  }
+
+  /// Converts any exception or http response into clean, user-friendly natural language message
+  static String extractErrorMessage(dynamic input) {
+    if (input is http.Response) {
+      try {
+        final data = jsonDecode(input.body);
+        if (data is Map && data.containsKey('detail')) {
+          final detail = data['detail'];
+          if (detail is String) return detail;
+          if (detail is List && detail.isNotEmpty) {
+            final first = detail[0];
+            if (first is Map && first.containsKey('msg')) return first['msg'].toString();
+          }
+        }
+      } catch (_) {}
+      if (input.statusCode == 401) return 'Session expired or invalid credentials. Please log in again.';
+      if (input.statusCode == 403) return 'Access denied. You do not have permission to perform this action.';
+      if (input.statusCode == 404) return 'Requested item or server endpoint not found.';
+      if (input.statusCode >= 500) return 'Server error (${input.statusCode}). Please try again later.';
+      return 'Request failed (${input.statusCode}).';
+    }
+
+    String msg = input.toString();
+    if (msg.contains('Exception: ')) {
+      msg = msg.replaceAll('Exception: ', '');
+    }
+    final lower = msg.toLowerCase();
+    if (lower.contains('socketexception') || lower.contains('connection refused') || lower.contains('clientexception') || lower.contains('network is unreachable')) {
+      return 'Network Connectivity Error: No internet or Wi-Fi connection. Please check network settings.';
+    }
+    return msg;
   }
 }
 

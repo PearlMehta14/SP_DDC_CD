@@ -15,11 +15,14 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> with AutomaticKeepAliveClientMixin {
   DateTime _selectedDate = AppDateFormatter.nowIST();
   bool _isLoading = true;
   String? _error;
   Map<String, dynamic>? _metrics;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -27,11 +30,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _fetchDashboard();
   }
 
-  Future<void> _fetchDashboard() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _fetchDashboard({bool silent = false}) async {
+    final showFullLoading = !silent && _metrics == null;
+    if (showFullLoading) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
@@ -44,18 +50,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final response = await apiService.get(endpoint);
       
       if (response.statusCode == 200) {
-        setState(() {
-          _metrics = jsonDecode(response.body);
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _metrics = jsonDecode(response.body);
+            _isLoading = false;
+            _error = null;
+          });
+        }
       } else {
-        throw Exception(jsonDecode(response.body)['detail'] ?? 'Failed to load dashboard');
+        throw Exception(ApiService.extractErrorMessage(response));
       }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          if (_metrics == null) {
+            _error = ApiService.extractErrorMessage(e);
+          }
+          _isLoading = false;
+        });
+        if (_metrics != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ApiService.extractErrorMessage(e))),
+          );
+        }
+      }
     }
   }
 
@@ -86,15 +104,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  String _formatKarat(String val) {
-    try {
-      final d = Decimal.parse(val);
-      return d.toStringAsFixed(2);
-    } catch (_) {
-      return '0.00';
-    }
-  }
-
   String _formatCurrency(String val) {
     try {
       final d = Decimal.parse(val);
@@ -114,6 +123,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final user = ref.watch(authProvider).user;
     final isToday = DateFormat('yyyy-MM-dd').format(_selectedDate) == AppDateFormatter.currentISTDateStr();
 
@@ -209,15 +219,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF9E8),
+                    color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFD4AF37)),
+                    border: Border.all(color: Colors.red.shade300),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      const Icon(Icons.error_outline, color: Color(0xFFB8860B)),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(_error!, style: const TextStyle(color: Color(0xFFB8860B)))),
+                      Row(
+                        children: [
+                          Icon(Icons.wifi_off_rounded, color: Colors.red.shade700, size: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          onPressed: _fetchDashboard,
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('RECONNECT / RETRY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 )
@@ -232,42 +266,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                     
-                    // Grid Metrics
-                    Responsive.isMobile(context)
-                    ? Column(
-                        children: [
-                          _buildMetricCard(
+                    // Grid Metrics (In One Line)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricCard(
                             'STOCK ADDED',
                             _formatCurrency(_metrics!['stock_added_value'] ?? '0'),
                             Colors.green.shade600,
                           ),
-                          const SizedBox(height: 16),
-                          _buildMetricCard(
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMetricCard(
                             'STOCK SUBTRACTED',
                             _formatCurrency(_metrics!['stock_subtracted_value'] ?? '0'),
                             Colors.red.shade600,
                           ),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: _buildMetricCard(
-                              'STOCK ADDED',
-                              _formatCurrency(_metrics!['stock_added_value'] ?? '0'),
-                              Colors.green.shade600,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildMetricCard(
-                              'STOCK SUBTRACTED',
-                              _formatCurrency(_metrics!['stock_subtracted_value'] ?? '0'),
-                              Colors.red.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 32),
 
                     // Today's Movements

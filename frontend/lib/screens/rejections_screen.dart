@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:decimal/decimal.dart';
 import '../services/api_service.dart';
 import 'stock_screen.dart';
 import '../utils/date_formatter.dart';
@@ -21,7 +20,7 @@ class RejectionsScreen extends StatefulWidget {
   State<RejectionsScreen> createState() => _RejectionsScreenState();
 }
 
-class _RejectionsScreenState extends State<RejectionsScreen> {
+class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepAliveClientMixin {
   List<dynamic> _rejections = [];
   bool _isLoading = true;
   String? _error;
@@ -31,13 +30,17 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
   bool _isSavingDraft = false;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
     _loadRejections();
   }
 
   Future<void> _loadRejections({bool showLoader = true}) async {
-    if (showLoader) {
+    final shouldShowLoader = showLoader && _rejections.isEmpty;
+    if (shouldShowLoader) {
       setState(() {
         _isLoading = true;
         _error = null;
@@ -148,39 +151,17 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
           }
         }
       } else {
-        _showError('Failed to load stocks');
+        _showError(ApiService.extractErrorMessage(response));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        _showError(e.toString());
+        _showError(ApiService.extractErrorMessage(e));
       }
     }
   }
 
-  Decimal _parse(String val) {
-    if (val.trim().isEmpty) return Decimal.zero;
-    try {
-      return Decimal.parse(val.trim());
-    } catch (_) {
-      return Decimal.zero;
-    }
-  }
 
-  String get _remainingStockDisplay {
-    if (_draft.stock == null) return '';
-    final stockKarat = _draft.stock!['karat'] ?? 0;
-    final stockCent = _draft.stock!['cent'] ?? 0;
-    final totalAvailable = Decimal.parse('$stockKarat.$stockCent');
-    final sold = _parse(_draft.soldValue.text);
-    
-    if (sold > totalAvailable) {
-      return 'EXCEEDS!';
-    }
-    
-    final rem = totalAvailable - sold;
-    return '${rem.toStringAsFixed(2)} KT';
-  }
 
   Future<void> _saveDraft() async {
     if (_draft.stock == null) return;
@@ -240,10 +221,10 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
         
         await _loadRejections(showLoader: false);
       } else {
-        _showError(jsonDecode(response.body)['detail'] ?? 'Failed to save rejection');
+        _showError(ApiService.extractErrorMessage(response));
       }
     } catch (e) {
-      _showError(e.toString());
+      _showError(ApiService.extractErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isSavingDraft = false);
     }
@@ -453,6 +434,7 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(

@@ -11,11 +11,14 @@ class LogsScreen extends StatefulWidget {
   State<LogsScreen> createState() => _LogsScreenState();
 }
 
-class _LogsScreenState extends State<LogsScreen> {
+class _LogsScreenState extends State<LogsScreen> with AutomaticKeepAliveClientMixin {
   List<dynamic> _logs = [];
   bool _isLoading = true;
   String? _error;
   String _filterType = 'ALL';
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -23,19 +26,45 @@ class _LogsScreenState extends State<LogsScreen> {
     _loadLogs();
   }
 
-  Future<void> _loadLogs() async {
-    setState(() { _isLoading = true; _error = null; });
+  Future<void> _loadLogs({bool silent = false}) async {
+    final showFullLoading = !silent && _logs.isEmpty;
+    if (showFullLoading) {
+      setState(() { _isLoading = true; _error = null; });
+    }
     try {
       final res = await apiService.getLogs();
       if (res.statusCode == 200) {
-        setState(() => _logs = jsonDecode(res.body) as List);
+        if (mounted) {
+          setState(() {
+            _logs = jsonDecode(res.body) as List;
+            _error = null;
+          });
+        }
       } else {
-        setState(() => _error = 'Failed to load (${res.statusCode})');
+        if (mounted) {
+          if (_logs.isEmpty) {
+            setState(() => _error = ApiService.extractErrorMessage(res));
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(ApiService.extractErrorMessage(res))),
+            );
+          }
+        }
       }
     } catch (e) {
-      setState(() => _error = '$e');
+      if (mounted) {
+        if (_logs.isEmpty) {
+          setState(() => _error = ApiService.extractErrorMessage(e));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ApiService.extractErrorMessage(e))),
+          );
+        }
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -55,6 +84,7 @@ class _LogsScreenState extends State<LogsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final logs = _filtered;
     return Scaffold(
       backgroundColor: Colors.white,
@@ -100,7 +130,30 @@ class _LogsScreenState extends State<LogsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Colors.black54, strokeWidth: 2))
                 : _error != null
-                    ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.wifi_off_rounded, color: Colors.black87, size: 40),
+                              const SizedBox(height: 12),
+                              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: _loadLogs,
+                                icon: const Icon(Icons.refresh, size: 16),
+                                label: const Text('RECONNECT / RETRY'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.black,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
                     : logs.isEmpty
                         ? const Center(child: Text('No logs.', style: TextStyle(color: Colors.black38)))
                         : RefreshIndicator(

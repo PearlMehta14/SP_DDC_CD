@@ -3,42 +3,20 @@ import 'package:go_router/go_router.dart';
 import '../utils/responsive.dart';
 
 class MainScaffold extends StatelessWidget {
-  final Widget child;
+  final StatefulNavigationShell navigationShell;
   
-  const MainScaffold({super.key, required this.child});
+  const MainScaffold({super.key, required this.navigationShell});
 
-  int _calculateSelectedIndex(BuildContext context) {
-    final String location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/stock')) return 1;
-    if (location.startsWith('/rejections')) return 2;
-    if (location.startsWith('/reports')) return 3;
-    if (location.startsWith('/profile') || location.startsWith('/users')) return 4;
-    return 0;
-  }
-
-  void _onItemTapped(int index, BuildContext context) {
-    switch (index) {
-      case 0:
-        context.go('/');
-        break;
-      case 1:
-        context.go('/stock');
-        break;
-      case 2:
-        context.go('/rejections');
-        break;
-      case 3:
-        context.go('/reports');
-        break;
-      case 4:
-        context.go('/profile');
-        break;
-    }
+  void _onItemTapped(int index) {
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentIndex = _calculateSelectedIndex(context);
+    final currentIndex = navigationShell.currentIndex;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -50,7 +28,7 @@ class MainScaffold extends StatelessWidget {
               children: [
                 NavigationRail(
                   selectedIndex: currentIndex,
-                  onDestinationSelected: (index) => _onItemTapped(index, context),
+                  onDestinationSelected: _onItemTapped,
                   backgroundColor: Colors.white,
                   selectedIconTheme: const IconThemeData(color: Color(0xFFD4AF37)),
                   unselectedIconTheme: const IconThemeData(color: Color(0xFF6B6B6B)),
@@ -87,7 +65,7 @@ class MainScaffold extends StatelessWidget {
                   ],
                 ),
                 const VerticalDivider(thickness: 1, width: 1, color: Color(0xFFE5E5E5)),
-                Expanded(child: child),
+                Expanded(child: navigationShell),
               ],
             ),
           );
@@ -96,7 +74,7 @@ class MainScaffold extends StatelessWidget {
         // Mobile layout with BottomNavigationBar
         return Scaffold(
           backgroundColor: const Color(0xFFFAFAF8),
-          body: child,
+          body: navigationShell,
           bottomNavigationBar: Container(
             decoration: const BoxDecoration(
               border: Border(
@@ -108,7 +86,7 @@ class MainScaffold extends StatelessWidget {
             ),
             child: BottomNavigationBar(
               currentIndex: currentIndex,
-              onTap: (index) => _onItemTapped(index, context),
+              onTap: _onItemTapped,
               backgroundColor: Colors.white,
               selectedItemColor: const Color(0xFFD4AF37),
               unselectedItemColor: const Color(0xFF6B6B6B),

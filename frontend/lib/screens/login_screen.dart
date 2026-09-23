@@ -31,7 +31,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         email = '$email@ddcdiamonds.com';
       }
 
-      
       final success = await ref.read(authProvider.notifier).login(
         email,
         _passwordController.text,
@@ -57,152 +56,211 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/images/logo_bgremoved.png',
-                  width: 150,
-                  height: 150,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'WELCOME',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                    color: Color(0xFF1A1A1A),
+                children: [
+                  Image.asset(
+                    'assets/images/logo_bgremoved.png',
+                    width: 150,
+                    height: 150,
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Please sign in to continue',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6B6B6B),
-                  ),
-                ),
-                const SizedBox(height: 48),
-                if (authState.error != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 24),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF9E8),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFD4AF37)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'WELCOME',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                      color: Color(0xFF1A1A1A),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFB8860B)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            authState.error!,
-                            style: const TextStyle(color: Color(0xFFB8860B)),
-                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Please sign in to continue',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B6B6B),
+                    ),
+                  ),
+                  const SizedBox(height: 36),
+                  
+                  // Enhanced Error Banner with Network Reconnect Option
+                  if (authState.error != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: authState.error!.toLowerCase().contains('network') || authState.error!.toLowerCase().contains('wi-fi')
+                            ? Colors.red.shade50
+                            : const Color(0xFFFFF9E8),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: authState.error!.toLowerCase().contains('network') || authState.error!.toLowerCase().contains('wi-fi')
+                              ? Colors.red.shade300
+                              : const Color(0xFFD4AF37),
                         ),
-                      ],
-                    ),
-                  ),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    labelText: 'Email / Username',
-                    labelStyle: const TextStyle(color: Color(0xFF6B6B6B)),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFD4AF37), width: 2),
-                    ),
-                    errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.red),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.red, width: 2),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Please enter email';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    labelStyle: const TextStyle(color: Color(0xFF6B6B6B)),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFD4AF37), width: 2),
-                    ),
-                    errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.red),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.red, width: 2),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        color: const Color(0xFF6B6B6B),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Please enter password';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: authState.isLoading ? null : _login,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD4AF37),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: authState.isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : const Text(
-                            'LOGIN',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
-                            ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                authState.error!.toLowerCase().contains('network') || authState.error!.toLowerCase().contains('wi-fi')
+                                    ? Icons.wifi_off_rounded
+                                    : Icons.error_outline,
+                                color: authState.error!.toLowerCase().contains('network') || authState.error!.toLowerCase().contains('wi-fi')
+                                    ? Colors.red.shade700
+                                    : const Color(0xFFB8860B),
+                                size: 22,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  authState.error!,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: authState.error!.toLowerCase().contains('network') || authState.error!.toLowerCase().contains('wi-fi')
+                                        ? Colors.red.shade900
+                                        : const Color(0xFFB8860B),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                          if (authState.error!.toLowerCase().contains('network') || authState.error!.toLowerCase().contains('wi-fi')) ...[
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: authState.isLoading ? null : _login,
+                                icon: const Icon(Icons.refresh, size: 16, color: Colors.red),
+                                label: const Text(
+                                  'RECONNECT',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  backgroundColor: Colors.red.shade100,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'Email / Username',
+                      labelStyle: const TextStyle(color: Color(0xFF6B6B6B)),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFD4AF37), width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter email or username';
+                      }
+                      final trimmed = value.trim();
+                      if (trimmed.contains('@')) {
+                        final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$');
+                        if (!emailRegex.hasMatch(trimmed)) {
+                          return 'Email address is not complete (e.g., user@gmail.com)';
+                        }
+                      }
+                      return null;
+                    },
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      labelStyle: const TextStyle(color: Color(0xFF6B6B6B)),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFD4AF37), width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          color: const Color(0xFF6B6B6B),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) return 'Please enter password';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: authState.isLoading ? null : _login,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD4AF37),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: authState.isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            )
+                          : const Text(
+                              'LOGIN',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           ),
         ),
       ),

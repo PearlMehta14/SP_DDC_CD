@@ -31,9 +31,16 @@ def login(request: schemas.LoginRequest, db: Session = Depends(get_db)):
                 "is_active": user.is_active
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Login error: {str(e)}")
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        err_str = str(e).lower()
+        if "network" in err_str or "connection" in err_str or "socket" in err_str or "timeout" in err_str or "dns" in err_str:
+            raise HTTPException(status_code=503, detail="Network Connectivity Error: Unable to connect to authentication server. Please check Wi-Fi/Internet connection.")
+        if "invalid" in err_str or "credentials" in err_str or "grant" in err_str:
+            raise HTTPException(status_code=401, detail="Invalid email or password. Please check your login credentials.")
+        raise HTTPException(status_code=401, detail="Authentication failed. Please verify your email and password.")
 
 @router.post("/logout")
 def logout(current_user: models.User = Depends(dependencies.get_current_user)):

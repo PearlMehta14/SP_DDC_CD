@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
@@ -64,7 +63,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
         };
         final response = await apiService.patch('/api/v1/users/${widget.user!['id']}', body);
         if (response.statusCode != 200) {
-          throw Exception(jsonDecode(response.body)['detail'] ?? 'Failed to update user');
+          throw Exception(ApiService.extractErrorMessage(response));
         }
       } else {
         final body = {
@@ -75,7 +74,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
         };
         final response = await apiService.post('/api/v1/users/', body);
         if (response.statusCode != 200) {
-          throw Exception(jsonDecode(response.body)['detail'] ?? 'Failed to create user');
+          throw Exception(ApiService.extractErrorMessage(response));
         }
       }
 
@@ -88,7 +87,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
       }
     } catch (e) {
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = ApiService.extractErrorMessage(e);
         _isLoading = false;
       });
     }
@@ -166,7 +165,15 @@ class _UserFormScreenState extends State<UserFormScreen> {
                   controller: _emailController,
                   decoration: _inputDecoration('Email Address'),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (v) => v!.isEmpty || !v.contains('@') ? 'Valid email required' : null,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Email address is required';
+                    final trimmed = v.trim();
+                    final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$');
+                    if (!emailRegex.hasMatch(trimmed)) {
+                      return 'Email address is not complete (e.g., user@gmail.com)';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

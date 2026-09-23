@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .database import engine, Base, SessionLocal
@@ -77,4 +78,21 @@ def startup_event():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "message": "DDC Diamonds Backend is running"
+    }
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    err_str = str(exc)
+    print(f"Global exception: {err_str}")
+    if "connection" in err_str.lower() or "operationalerror" in err_str.lower() or "socket" in err_str.lower():
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Database Connection Error: Unable to reach database server. Please check network connection."}
+        )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Server Error: {err_str}"}
+    )

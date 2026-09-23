@@ -60,7 +60,7 @@ class StockScreen extends StatefulWidget {
   State<StockScreen> createState() => _StockScreenState();
 }
 
-class _StockScreenState extends State<StockScreen> {
+class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClientMixin {
   List<dynamic> _stocks = [];
   bool _isLoading = true;
   String? _error;
@@ -75,9 +75,9 @@ class _StockScreenState extends State<StockScreen> {
   String _batchType = '-2';
   List<_BatchRowData> _batchRows = [];
   bool _isSavingBatch = false;
-  
-  final TextEditingController _batchLess = TextEditingController(text: '5');
-  final TextEditingController _batchBrokerage = TextEditingController(text: '1');
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -85,11 +85,14 @@ class _StockScreenState extends State<StockScreen> {
     _loadStocks();
   }
 
-  Future<void> _loadStocks() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _loadStocks({bool silent = false}) async {
+    final showFullLoading = !silent && _stocks.isEmpty;
+    if (showFullLoading) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final response = await apiService.get('/api/v1/stock/', queryParameters: {
@@ -103,22 +106,37 @@ class _StockScreenState extends State<StockScreen> {
           setState(() {
             _stocks = jsonDecode(response.body);
             _isLoading = false;
+            _error = null;
           });
         }
       } else {
         if (mounted) {
           setState(() {
-            _error = jsonDecode(response.body)['detail'] ?? 'Failed to load stock';
+            if (_stocks.isEmpty) {
+              _error = ApiService.extractErrorMessage(response);
+            }
             _isLoading = false;
           });
+          if (_stocks.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(ApiService.extractErrorMessage(response))),
+            );
+          }
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          if (_stocks.isEmpty) {
+            _error = ApiService.extractErrorMessage(e);
+          }
           _isLoading = false;
         });
+        if (_stocks.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ApiService.extractErrorMessage(e))),
+          );
+        }
       }
     }
   }
@@ -228,7 +246,7 @@ class _StockScreenState extends State<StockScreen> {
     }
     
     setState(() => _isSavingBatch = false);
-    _loadStocks();
+    _loadStocks(silent: true);
     
     if (successCount == rowsToSave.length) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All rows saved successfully!'), backgroundColor: Colors.green));
@@ -545,102 +563,6 @@ class _StockScreenState extends State<StockScreen> {
   }
 
 
-  Future<void> _showUpdateDialog(Map<String, dynamic> stock) async {
-    final karatStr = '${stock['karat']}.${stock['cent']?.toString().padLeft(2, '0') ?? '00'}';
-    final priceStr = stock['current_price_per_karat']?.toString() ?? '';
-    final karatCtrl = TextEditingController(text: karatStr);
-    final priceCtrl = TextEditingController(text: priceStr);
-
-    // Let user pick what to update
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-        contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('UPDATE STOCK', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('${stock['stock_category'] ?? ''} ${stock['stock_type'] ?? ''}  •  ${stock['product_tag'] ?? ''}',
-                    style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.normal)),
-              ],
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('CURRENT KARAT:', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                Text('$karatStr KT', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('CURRENT PRICE/KT:', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                Text(priceStr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Text('What do you want to update?', style: TextStyle(fontSize: 13, color: Colors.black87)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pop(ctx, 'karat'),
-                    icon: const Icon(Icons.scale_outlined, size: 16),
-                    label: const Text('KARAT', style: TextStyle(fontSize: 13)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFC5A059),
-                      side: const BorderSide(color: Color(0xFFC5A059)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pop(ctx, 'price'),
-                    icon: const Icon(Icons.currency_rupee, size: 16),
-                    label: const Text('PRICE/KT', style: TextStyle(fontSize: 13)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1A1A1A),
-                      side: const BorderSide(color: Color(0xFF1A1A1A)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('CANCEL', style: TextStyle(color: Colors.black45))),
-        ],
-      ),
-    );
-
-    if (choice == null || !mounted) return;
-
-    if (choice == 'karat') {
-      await _showKaratUpdateDialog(stock, karatStr, karatCtrl);
-    } else if (choice == 'price') {
-      await _showPriceUpdateDialog(stock, priceStr, priceCtrl);
-    }
-  }
-
   Future<void> _showKaratUpdateDialog(Map<String, dynamic> stock, String karatStr, TextEditingController controller) async {
     final result = await showDialog<bool>(
       context: context,
@@ -833,6 +755,7 @@ class _StockScreenState extends State<StockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -993,7 +916,35 @@ class _StockScreenState extends State<StockScreen> {
               child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFFC5A059)))
                 : _error != null
-                    ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.wifi_off_rounded, color: Colors.red, size: 48),
+                              const SizedBox(height: 16),
+                              Text(
+                                _error!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: _loadStocks,
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('RECONNECT / RETRY', style: TextStyle(fontWeight: FontWeight.bold)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1A1A1A),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
                     : SingleChildScrollView(
                         child: LayoutBuilder(
                           builder: (context, constraints) {

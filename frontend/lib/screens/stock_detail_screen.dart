@@ -23,11 +23,14 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
     _loadData();
   }
 
-  Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _loadData({bool silent = false}) async {
+    final showFullLoading = !silent && _stock == null;
+    if (showFullLoading) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final stockRes = await apiService.getStock(widget.stockId);
@@ -39,12 +42,15 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
             _stock = jsonDecode(stockRes.body);
             _history = jsonDecode(histRes.body);
             _isLoading = false;
+            _error = null;
           });
         }
       } else {
         if (mounted) {
           setState(() {
-            _error = 'Failed to load stock data';
+            if (_stock == null) {
+              _error = 'Failed to load stock data';
+            }
             _isLoading = false;
           });
         }
@@ -52,7 +58,9 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          if (_stock == null) {
+            _error = e.toString();
+          }
           _isLoading = false;
         });
       }

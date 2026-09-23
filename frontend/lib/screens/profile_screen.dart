@@ -31,7 +31,7 @@ class ProfileScreen extends ConsumerWidget {
                 _buildListTile(
                   icon: Icons.security_outlined,
                   title: 'Security',
-                  subtitle: 'PIN & Biometrics',
+                  subtitle: 'APP PIN',
                   onTap: () => context.push('/security'),
                 ),
               ],

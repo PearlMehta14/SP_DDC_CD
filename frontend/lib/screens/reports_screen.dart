@@ -19,7 +19,7 @@ class ReportsScreen extends StatefulWidget {
   State<ReportsScreen> createState() => _ReportsScreenState();
 }
 
-class _ReportsScreenState extends State<ReportsScreen> {
+class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveClientMixin {
   String _reportType = 'STOCK'; // STOCK or REJECTION
   String _selectedCategory = 'ALL';
   String _selectedStockType = 'ALL';
@@ -36,16 +36,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
   final List<String> _stockTypes = ['ALL', '-2', '+2'];
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
     _loadReports();
   }
   
-  Future<void> _loadReports() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _loadReports({bool silent = false}) async {
+    final showFullLoading = !silent && _records.isEmpty && _summary == null;
+    if (showFullLoading) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final response = _reportType == 'STOCK' 
@@ -430,6 +436,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAF8),
       appBar: AppBar(

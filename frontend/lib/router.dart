@@ -53,55 +53,75 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/unlock',
         builder: (context, state) => const UnlockScreen(),
       ),
-      ShellRoute(
-        builder: (context, state, child) {
-          return MainScaffold(child: child);
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainScaffold(navigationShell: navigationShell);
         },
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) => const HomeScreen(),
-          ),
-          GoRoute(
-            path: '/stock',
-            builder: (context, state) => const StockScreen(),
+        branches: [
+          StatefulShellBranch(
             routes: [
               GoRoute(
-                path: ':id',
-                builder: (context, state) {
-                  final id = state.pathParameters['id']!;
-                  return StockDetailScreen(stockId: id);
-                },
+                path: '/',
+                builder: (context, state) => const HomeScreen(),
               ),
             ],
           ),
-          GoRoute(
-            path: '/rejections',
-            builder: (context, state) => const RejectionsScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/stock',
+                builder: (context, state) => const StockScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) {
+                      final id = state.pathParameters['id']!;
+                      return StockDetailScreen(stockId: id);
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/reports',
-            builder: (context, state) => const ReportsScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/rejections',
+                builder: (context, state) => const RejectionsScreen(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/profile',
-            builder: (context, state) => const ProfileScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/reports',
+                builder: (context, state) => const ReportsScreen(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/security',
-            builder: (context, state) => const SecuritySettingsScreen(),
-          ),
-          GoRoute(
-            path: '/users',
-            redirect: (context, state) {
-              if (authState.user?['role'] != 'ADMIN') return '/';
-              return null;
-            },
-            builder: (context, state) => const UsersScreen(),
-          ),
-          GoRoute(
-            path: '/logs',
-            builder: (context, state) => const LogsScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) => const ProfileScreen(),
+              ),
+              GoRoute(
+                path: '/security',
+                builder: (context, state) => const SecuritySettingsScreen(),
+              ),
+              GoRoute(
+                path: '/users',
+                redirect: (context, state) {
+                  if (authState.user?['role'] != 'ADMIN') return '/';
+                  return null;
+                },
+                builder: (context, state) => const UsersScreen(),
+              ),
+              GoRoute(
+                path: '/logs',
+                builder: (context, state) => const LogsScreen(),
+              ),
+            ],
           ),
         ],
       ),

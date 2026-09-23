@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_auth/local_auth.dart';
 import '../providers/auth_provider.dart';
 import '../utils/responsive.dart';
 
@@ -12,22 +11,6 @@ class SecuritySettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen> {
-  final LocalAuthentication _localAuth = LocalAuthentication();
-  bool _canCheckBiometrics = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkBiometricsAvailability();
-  }
-
-  Future<void> _checkBiometricsAvailability() async {
-    final canCheck = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
-    setState(() {
-      _canCheckBiometrics = canCheck;
-    });
-  }
-
   void _showSetPinDialog() {
     _showPinDialog(title: 'Set PIN', isSettingNew: true);
   }
@@ -94,7 +77,6 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
                         });
                       }
                     } else if (isChanging) {
-                      // Need to validate current pin to proceed
                       final testUnlock = await ref.read(authProvider.notifier).unlock(currentPin);
                       if (testUnlock) {
                         setStateDialog(() => step = 1);
@@ -104,7 +86,7 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
                           currentPin = '';
                         });
                       }
-                      ref.read(authProvider.notifier).lockApp(); // Re-lock logically if we unlocked it temporarily
+                      ref.read(authProvider.notifier).lockApp();
                     }
                   } else if (step == 1) {
                     setStateDialog(() => step = 2);
@@ -146,51 +128,50 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(promptText, style: const TextStyle(fontSize: 16)),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(4, (index) {
-                      final isFilled = index < currentInput.length;
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        width: 16,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isFilled ? const Color(0xFF1A1A1A) : Colors.transparent,
-                          border: Border.all(color: errorMsg.isNotEmpty ? Colors.red : const Color(0xFF1A1A1A), width: 2),
-                        ),
-                      );
-                    }),
-                  ),
-                  if (errorMsg.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: Text(errorMsg, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(4, (index) {
+                        final isFilled = index < currentInput.length;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isFilled ? const Color(0xFF1A1A1A) : Colors.transparent,
+                            border: Border.all(color: errorMsg.isNotEmpty ? Colors.red : const Color(0xFF1A1A1A), width: 2),
+                          ),
+                        );
+                      }),
                     ),
-                  const SizedBox(height: 32),
-                  _buildNumpadRow(['1', '2', '3'], onKeyPress),
-                  const SizedBox(height: 16),
-                  _buildNumpadRow(['4', '5', '6'], onKeyPress),
-                  const SizedBox(height: 16),
-                  _buildNumpadRow(['7', '8', '9'], onKeyPress),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      const SizedBox(width: 60),
-                      _buildNumpadButton('0', onKeyPress),
-                      _buildBackspaceButton(onKeyPress),
-                    ],
-                  ),
-                ],
+                    if (errorMsg.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: Text(errorMsg, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      ),
+                    const SizedBox(height: 32),
+                    _buildNumpadRow(['1', '2', '3'], onKeyPress),
+                    const SizedBox(height: 16),
+                    _buildNumpadRow(['4', '5', '6'], onKeyPress),
+                    const SizedBox(height: 16),
+                    _buildNumpadRow(['7', '8', '9'], onKeyPress),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        const SizedBox(width: 60),
+                        _buildNumpadButton('0', onKeyPress),
+                        _buildBackspaceButton(onKeyPress),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
+              actions: [
                 TextButton(
                   onPressed: () {
                     if (isChanging && step > 0 && mounted) {
-                      // re-lock logically if we unlocked it temporarily during change PIN
                       ref.read(authProvider.notifier).lockApp(); 
                     }
                     Navigator.pop(ctx);
@@ -252,45 +233,6 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
     ));
   }
 
-  void _showErrorSnackbar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: Colors.red.shade600,
-    ));
-  }
-
-  Future<void> _toggleBiometrics(bool enable) async {
-    final authState = ref.read(authProvider);
-    if (!authState.hasPin) {
-      _showErrorSnackbar('Please set a PIN first before enabling Biometrics.');
-      return;
-    }
-
-    if (enable) {
-      if (!_canCheckBiometrics) {
-        _showErrorSnackbar('Biometrics are not available on this device.');
-        return;
-      }
-      
-      try {
-        final authenticated = await _localAuth.authenticate(
-          localizedReason: 'Verify identity to enable Biometric Unlock',
-          persistAcrossBackgrounding: true,
-          biometricOnly: true,
-        );
-        if (authenticated) {
-          await ref.read(authProvider.notifier).setBiometrics(true);
-          _showSuccessSnackbar('Biometric Unlock enabled');
-        }
-      } catch (e) {
-        _showErrorSnackbar('Failed to authenticate');
-      }
-    } else {
-      await ref.read(authProvider.notifier).setBiometrics(false);
-      _showSuccessSnackbar('Biometric Unlock disabled');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -312,113 +254,80 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              _buildSectionHeader('APP PIN'),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE5E5E5)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Status:', style: TextStyle(fontSize: 16, color: Color(0xFF6B6B6B))),
-                        Text(
-                          authState.hasPin ? 'Enabled' : 'Disabled',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: authState.hasPin ? Colors.green.shade600 : Colors.red.shade600,
+                _buildSectionHeader('APP PIN'),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE5E5E5)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Status:', style: TextStyle(fontSize: 16, color: Color(0xFF6B6B6B))),
+                          Text(
+                            authState.hasPin ? 'Enabled' : 'Disabled',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: authState.hasPin ? Colors.green.shade600 : Colors.red.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      if (!authState.hasPin)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _showSetPinDialog,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFD4AF37),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('SET PIN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                          ),
+                        )
+                      else ...[
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _showChangePinDialog,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              side: const BorderSide(color: Color(0xFFD4AF37)),
+                            ),
+                            child: const Text('CHANGE PIN', style: TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _showRemovePinDialog,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              side: BorderSide(color: Colors.red.shade200),
+                            ),
+                            child: Text('REMOVE PIN', style: TextStyle(color: Colors.red.shade600, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 24),
-                    if (!authState.hasPin)
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _showSetPinDialog,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFD4AF37),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text('SET PIN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                        ),
-                      )
-                    else ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: _showChangePinDialog,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            side: const BorderSide(color: Color(0xFFD4AF37)),
-                          ),
-                          child: const Text('CHANGE PIN', style: TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: _showRemovePinDialog,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            side: BorderSide(color: Colors.red.shade200),
-                          ),
-                          child: Text('REMOVE PIN', style: TextStyle(color: Colors.red.shade600, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                        ),
-                      ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 48),
-              
-              _buildSectionHeader('BIOMETRIC UNLOCK'),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE5E5E5)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Use fingerprint / face authentication', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                          SizedBox(height: 4),
-                          Text('Alternative to PIN unlock', style: TextStyle(fontSize: 12, color: Color(0xFF6B6B6B))),
-                        ],
-                      ),
-                    ),
-                    Switch(
-                      value: authState.useBiometrics,
-                      onChanged: authState.hasPin ? _toggleBiometrics : null,
-                      activeColor: const Color(0xFFD4AF37),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );

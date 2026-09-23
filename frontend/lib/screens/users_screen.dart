@@ -11,9 +11,12 @@ class UsersScreen extends ConsumerStatefulWidget {
   ConsumerState<UsersScreen> createState() => _UsersScreenState();
 }
 
-class _UsersScreenState extends ConsumerState<UsersScreen> {
+class _UsersScreenState extends ConsumerState<UsersScreen> with AutomaticKeepAliveClientMixin {
   List<dynamic> _users = [];
   bool _isLoading = true;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -21,23 +24,28 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     _fetchUsers();
   }
 
-  Future<void> _fetchUsers() async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchUsers({bool silent = false}) async {
+    final showFullLoading = !silent && _users.isEmpty;
+    if (showFullLoading) {
+      setState(() => _isLoading = true);
+    }
     try {
       final response = await apiService.get('/api/v1/users/');
       if (response.statusCode == 200) {
-        setState(() {
-          _users = jsonDecode(response.body);
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _users = jsonDecode(response.body);
+            _isLoading = false;
+          });
+        }
       } else {
-        throw Exception('Failed to load users');
+        throw Exception(ApiService.extractErrorMessage(response));
       }
     } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading users: $e')),
+          SnackBar(content: Text(ApiService.extractErrorMessage(e)), backgroundColor: Colors.red),
         );
       }
     }
@@ -81,13 +89,12 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
       if (response.statusCode == 200) {
         _fetchUsers();
       } else {
-        final error = jsonDecode(response.body)['detail'] ?? 'Failed to deactivate';
-        throw Exception(error);
+        throw Exception(ApiService.extractErrorMessage(response));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text(ApiService.extractErrorMessage(e)), backgroundColor: Colors.red),
         );
       }
     }
@@ -95,6 +102,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAF8),
       appBar: AppBar(

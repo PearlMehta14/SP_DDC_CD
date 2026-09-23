@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
 
 class AuthState {
   final bool isLoading;
@@ -11,7 +12,6 @@ class AuthState {
   // Security fields
   final bool isLocked;
   final bool hasPin;
-  final bool useBiometrics;
 
   AuthState({
     this.isLoading = false,
@@ -20,7 +20,6 @@ class AuthState {
     this.error,
     this.isLocked = false,
     this.hasPin = false,
-    this.useBiometrics = false,
   });
 
   AuthState copyWith({
@@ -31,7 +30,6 @@ class AuthState {
     bool clearError = false,
     bool? isLocked,
     bool? hasPin,
-    bool? useBiometrics,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
@@ -40,7 +38,6 @@ class AuthState {
       error: clearError ? null : (error ?? this.error),
       isLocked: isLocked ?? this.isLocked,
       hasPin: hasPin ?? this.hasPin,
-      useBiometrics: useBiometrics ?? this.useBiometrics,
     );
   }
 }
@@ -66,10 +63,7 @@ class AuthNotifier extends Notifier<AuthState> {
       
       // Check security settings
       final pin = await _storage.read(key: 'app_pin');
-      final bio = await _storage.read(key: 'use_biometrics');
-      
       final hasPin = pin != null && pin.isNotEmpty;
-      final useBio = bio == 'true';
       
       // If user is logged in and PIN is set, lock the app
       final isLocked = (user != null && hasPin);
@@ -79,7 +73,6 @@ class AuthNotifier extends Notifier<AuthState> {
         isInitializing: false,
         user: user,
         hasPin: hasPin,
-        useBiometrics: useBio,
         isLocked: isLocked,
       );
     } catch (e) {
@@ -93,34 +86,25 @@ class AuthNotifier extends Notifier<AuthState> {
       final user = await authService.login(email, password);
       
       final pin = await _storage.read(key: 'app_pin');
-      final bio = await _storage.read(key: 'use_biometrics');
-      
       final hasPin = pin != null && pin.isNotEmpty;
-      final useBio = bio == 'true';
       final isLocked = hasPin;
       
       state = state.copyWith(
         isLoading: false, 
         user: user,
         hasPin: hasPin,
-        useBiometrics: useBio,
         isLocked: isLocked,
       );
       return true;
     } catch (e) {
-      String errorMessage = 'Invalid login';
-      if (e.toString().contains('SocketException') || e.toString().contains('Connection refused') || e.toString().contains('ClientException')) {
-        errorMessage = 'Network error: Cannot reach server.';
-      } else if (e.toString().contains('Exception: ')) {
-        errorMessage = e.toString().replaceAll('Exception: ', '');
-      }
+      final errorMessage = ApiService.extractErrorMessage(e);
       state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     }
   }
 
   Future<void> logout() async {
-    state = AuthState(isInitializing: false); // reset to unauthenticated instantly
+    state = AuthState(isInitializing: false);
     try {
       await authService.logout();
     } catch (_) {}
@@ -143,10 +127,6 @@ class AuthNotifier extends Notifier<AuthState> {
     return false;
   }
   
-  void unlockWithBiometrics() {
-    state = state.copyWith(isLocked: false);
-  }
-  
   Future<void> setPin(String newPin) async {
     await _storage.write(key: 'app_pin', value: newPin);
     state = state.copyWith(hasPin: true);
@@ -166,15 +146,10 @@ class AuthNotifier extends Notifier<AuthState> {
     if (pin == currentPin) {
       await _storage.delete(key: 'app_pin');
       await _storage.delete(key: 'use_biometrics');
-      state = state.copyWith(hasPin: false, useBiometrics: false, isLocked: false);
+      state = state.copyWith(hasPin: false, isLocked: false);
       return true;
     }
     return false;
-  }
-  
-  Future<void> setBiometrics(bool use) async {
-    await _storage.write(key: 'use_biometrics', value: use.toString());
-    state = state.copyWith(useBiometrics: use);
   }
 }
 
