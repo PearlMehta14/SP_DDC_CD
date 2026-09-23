@@ -15,7 +15,12 @@ supabase_admin: Client = create_client(
     settings.supabase_url, 
     admin_key
 )
-
+print("=== SUPABASE CONFIG CHECK ===")
+print("URL:", bool(settings.supabase_url), settings.supabase_url[:30] if settings.supabase_url else "MISSING")
+print("PUBLISHABLE:", bool(settings.supabase_publishable_key), settings.supabase_publishable_key[:10] if settings.supabase_publishable_key else "MISSING")
+print("SECRET:", bool(settings.supabase_secret_key), settings.supabase_secret_key[:10] if settings.supabase_secret_key else "MISSING")
+print("SECRET LENGTH:", len(settings.supabase_secret_key) if settings.supabase_secret_key else 0)
+print("==============================")
 supabase_client: Client = create_client(
     settings.supabase_url, 
     anon_key
