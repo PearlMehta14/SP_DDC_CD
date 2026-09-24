@@ -277,7 +277,7 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
-  Future<void> _showInputDialog(String title, TextEditingController controller, {bool isNumber = false}) async {
+  Future<bool> _showInputDialog(String title, TextEditingController controller, {bool isNumber = false}) async {
     final tempController = TextEditingController(text: controller.text);
     final result = await showDialog<bool>(
       context: context,
@@ -306,7 +306,9 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
       setState(() {
         controller.text = tempController.text.trim();
       });
+      return true;
     }
+    return false;
   }
 
   Future<void> _selectDate() async {
