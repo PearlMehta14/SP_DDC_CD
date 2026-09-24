@@ -63,6 +63,7 @@ class StockScreen extends StatefulWidget {
 class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClientMixin {
   List<dynamic> _stocks = [];
   bool _isLoading = true;
+  bool _hasLoadedOnce = false;
   String? _error;
   String _searchQuery = '';
   String _selectedStatus = 'ALL';
@@ -85,6 +86,16 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
     _loadStocks();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Silently refresh every time the Stock tab becomes active after first load.
+    if (_hasLoadedOnce && !_isAddingStock) {
+      _loadStocks(silent: true);
+    }
+  }
+
+
   Future<void> _loadStocks({bool silent = false}) async {
     final showFullLoading = !silent && _stocks.isEmpty;
     if (showFullLoading) {
@@ -93,6 +104,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         _error = null;
       });
     }
+    _hasLoadedOnce = true;
 
     try {
       final response = await apiService.get('/api/v1/stock/', queryParameters: {

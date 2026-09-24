@@ -26,6 +26,7 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
   String _selectedProduct = 'ALL';
   
   bool _isLoading = false;
+  bool _hasLoadedOnce = false;
   String? _error;
   
   Map<String, dynamic>? _summary;
@@ -43,6 +44,16 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
     super.initState();
     _loadReports();
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Auto-refresh silently every time the tab becomes active after the first load.
+    // This ensures newly added/updated stocks always appear without a full spinner.
+    if (_hasLoadedOnce) {
+      _loadReports(silent: true);
+    }
+  }
   
   Future<void> _loadReports({bool silent = false}) async {
     final showFullLoading = !silent && _records.isEmpty && _summary == null;
@@ -52,6 +63,7 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
         _error = null;
       });
     }
+    _hasLoadedOnce = true;
 
     try {
       final response = _reportType == 'STOCK' 
@@ -474,6 +486,13 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1A1A1A),
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: _isLoading ? null : () => _loadReports(silent: true),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Container(color: const Color(0xFFE5E5E5), height: 1.0),
@@ -554,23 +573,10 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
                   child: DropdownButtonFormField<String>(
                     isExpanded: true,
                     decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12), labelText: 'Type', labelStyle: const TextStyle(fontSize: 12)),
-                    value: _selectedCategory == 'EXTRA' ? 'ALL' : _selectedStockType, // Force ALL if EXTRA
+                    value: _selectedCategory == 'EXTRA' ? 'ALL' : _selectedStockType,
                     items: _stockTypes.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
                     onChanged: _selectedCategory == 'EXTRA' ? null : (v) { 
                       setState(() => _selectedStockType = v!); 
-                      _loadReports(); 
-                    },
-                  )
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12), labelText: 'Product Tag', labelStyle: const TextStyle(fontSize: 12)),
-                    value: _selectedProduct,
-                    items: _products.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
-                    onChanged: (v) { 
-                      setState(() => _selectedProduct = v!); 
                       _loadReports(); 
                     },
                   )
@@ -696,12 +702,9 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
                                     DataColumn(label: Text('CATEGORY')),
                                     DataColumn(label: Text('TYPE')),
                                     DataColumn(label: Text('PRODUCT TAG')),
-                                    DataColumn(label: Text('STOCK TAG')),
-                                    DataColumn(label: Text('VER')),
                                     DataColumn(label: Text('KARAT')),
                                     DataColumn(label: Text('PRICE/KT')),
                                     DataColumn(label: Text('FINAL TOTAL')),
-                                    DataColumn(label: Text('STATUS')),
                                   ]
                                 : const [
                                     DataColumn(label: Text('CATEGORY')),
@@ -720,12 +723,9 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
                                     DataCell(Text(r['stock_category'] ?? '')),
                                     DataCell(Text(r['stock_type'] ?? '')),
                                     DataCell(Text(r['product_tag'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold))),
-                                    DataCell(Text(r['stock_tag'].toString().substring(0, 8) + '...', style: const TextStyle(color: Colors.grey))),
-                                    DataCell(Text('v${r['version_no']}', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))),
                                     DataCell(Text(_formatKarat(r['karat'], r['cent']))),
                                     DataCell(Text(r['current_price_per_karat'] ?? '')),
                                     DataCell(Text(r['base_total_amount'] ?? '')),
-                                    DataCell(Text(r['status'] ?? '', style: TextStyle(color: r['status'] == 'AVAILABLE' ? Colors.green : Colors.red, fontWeight: FontWeight.bold))),
                                   ]
                                 );
                               } else {
