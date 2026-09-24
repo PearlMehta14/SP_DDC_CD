@@ -230,6 +230,49 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
     }
   }
 
+  Future<void> _updateRejectionField(String rejId, String field, String newValue) async {
+    try {
+      final response = await apiService.put('/api/v1/rejections/$rejId', {field: newValue});
+      if (response.statusCode == 200) {
+        await _loadRejections(showLoader: false);
+      } else {
+        _showError(ApiService.extractErrorMessage(response));
+      }
+    } catch (e) {
+      _showError(ApiService.extractErrorMessage(e));
+    }
+  }
+
+  Future<void> _deleteRejection(String rejId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Delete'),
+        content: const Text('Are you sure you want to delete this rejection? The stock will be restored.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      final response = await apiService.delete('/api/v1/rejections/$rejId');
+      if (response.statusCode == 200) {
+        await _loadRejections();
+      } else {
+        _showError(ApiService.extractErrorMessage(response));
+      }
+    } catch (e) {
+      _showError(ApiService.extractErrorMessage(e));
+    }
+  }
+
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
@@ -396,13 +439,72 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
         _buildCell(rej['stock_category'] ?? '', width: colWidths['CATEGORY']!, scale: scale),
         _buildCell(typeDisplay!, width: colWidths['TYPE']!, scale: scale),
         _buildCell(rej['product_tag'] ?? '', width: colWidths['REFERENCE']!, scale: scale),
-        _buildCell(dateStr, width: colWidths['DATE']!, scale: scale),
-        _buildCell(rej['out_remark'] ?? '', width: colWidths['OUT']!, scale: scale),
-        _buildCell(rej['buyer'] ?? '', width: colWidths['BUYER']!, scale: scale),
+        _buildCell(
+          dateStr, 
+          width: colWidths['DATE']!, 
+          scale: scale,
+          isEditable: true,
+          onTap: () async {
+            final DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: DateTime.tryParse(rej['rejection_date']) ?? AppDateFormatter.nowIST(),
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (picked != null) {
+              _updateRejectionField(rej['id'], 'rejection_date', picked.toIso8601String().split('T')[0]);
+            }
+          },
+        ),
+        _buildCell(
+          rej['out_remark'] ?? '', 
+          width: colWidths['OUT']!, 
+          scale: scale,
+          isEditable: true,
+          onTap: () {
+            final ctrl = TextEditingController(text: rej['out_remark'] ?? '');
+            _showInputDialog('OUT', ctrl).then((v) {
+              if (v == true && ctrl.text != rej['out_remark']) _updateRejectionField(rej['id'], 'out_remark', ctrl.text);
+            });
+          }
+        ),
+        _buildCell(
+          rej['buyer'] ?? '', 
+          width: colWidths['BUYER']!, 
+          scale: scale,
+          isEditable: true,
+          onTap: () {
+            final ctrl = TextEditingController(text: rej['buyer'] ?? '');
+            _showInputDialog('BUYER', ctrl).then((v) {
+              if (v == true && ctrl.text != rej['buyer']) _updateRejectionField(rej['id'], 'buyer', ctrl.text);
+            });
+          }
+        ),
         _buildCell(soldStr, width: colWidths['SOLD']!, scale: scale),
-        _buildCell(rej['sold_price']?.toString() ?? '', width: colWidths['SOLD PRICE']!, scale: scale),
+        _buildCell(
+          rej['sold_price']?.toString() ?? '', 
+          width: colWidths['SOLD PRICE']!, 
+          scale: scale,
+          isEditable: true,
+          onTap: () {
+            final ctrl = TextEditingController(text: rej['sold_price']?.toString() ?? '');
+            _showInputDialog('SOLD PRICE', ctrl, isNumber: true).then((v) {
+              if (v == true && ctrl.text != rej['sold_price']?.toString()) _updateRejectionField(rej['id'], 'sold_price', ctrl.text);
+            });
+          }
+        ),
         _buildCell(rej['total_price']?.toString() ?? '', width: colWidths['TOTAL PRIZE']!, bgColor: const Color(0xFFFFF9E8), textColor: const Color(0xFFB8860B), scale: scale),
-        _buildCell('', width: colWidths['ACTION']!, scale: scale),
+        _buildActionCell(
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red, size: 16),
+            onPressed: () => _deleteRejection(rej['id']),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+          ),
+          width: colWidths['ACTION']!,
+          bgColor: Colors.white,
+          scale: scale,
+        ),
       ],
     );
   }

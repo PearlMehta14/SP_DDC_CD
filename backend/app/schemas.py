@@ -150,6 +150,12 @@ class RejectionCreate(BaseModel):
     buyer: Optional[str] = None
     out_remark: Optional[str] = None
 
+class RejectionUpdate(BaseModel):
+    out_remark: Optional[str] = None
+    buyer: Optional[str] = None
+    rejection_date: Optional[str] = None
+    sold_price: Optional[str] = None
+
 class RejectionResponse(BaseModel):
     id: str
     stock_id: str

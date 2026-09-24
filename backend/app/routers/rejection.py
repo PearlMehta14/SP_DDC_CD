@@ -150,6 +150,110 @@ def get_rejections(
     rejections = db.query(models.Rejection).order_by(models.Rejection.rejection_date.desc(), models.Rejection.created_at.desc()).all()
     return [_build_response(r) for r in rejections]
 
+@router.put("/{id}", response_model=schemas.RejectionResponse)
+def update_rejection(
+    id: str,
+    rejection_in: schemas.RejectionUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(dependencies.get_current_user)
+):
+    rejection = db.query(models.Rejection).filter(models.Rejection.id == id).first()
+    if not rejection:
+        raise HTTPException(status_code=404, detail="Rejection not found")
+
+    if rejection_in.out_remark is not None:
+        rejection.out_remark = rejection_in.out_remark
+    if rejection_in.buyer is not None:
+        rejection.buyer = rejection_in.buyer
+    if rejection_in.rejection_date is not None:
+        try:
+            rejection.rejection_date = datetime.strptime(rejection_in.rejection_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    if rejection_in.sold_price is not None:
+        rejection.sold_price = _to_decimal(rejection_in.sold_price)
+        sold_effective_karat = decimal.Decimal(rejection.sold_karat) + decimal.Decimal(rejection.sold_cent) / decimal.Decimal('100')
+        rejection.total_price = sold_effective_karat * rejection.sold_price
+
+    db.commit()
+    db.refresh(rejection)
+    return _build_response(rejection)
+
+@router.delete("/{id}")
+def delete_rejection(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(dependencies.get_current_user)
+):
+    rejection = db.query(models.Rejection).filter(models.Rejection.id == id).first()
+    if not rejection:
+        raise HTTPException(status_code=404, detail="Rejection not found")
+
+    # Find the current latest stock for this product
+    latest_stock = db.query(models.Stock).filter(
+        models.Stock.product_tag == rejection.product_tag,
+        models.Stock.stock_category == rejection.stock_category,
+        models.Stock.stock_type == rejection.stock_type,
+        models.Stock.is_latest == True
+    ).with_for_update().first()
+
+    if latest_stock:
+        # Restore stock
+        restored_cents_total = latest_stock.karat * 100 + latest_stock.cent + rejection.sold_karat * 100 + rejection.sold_cent
+        restored_karat = restored_cents_total // 100
+        restored_cent = restored_cents_total % 100
+        
+        latest_stock.is_latest = False
+        
+        restored_effective_karat = decimal.Decimal(restored_karat) + decimal.Decimal(restored_cent) / decimal.Decimal('100')
+        new_base_total = latest_stock.current_price_per_karat * restored_effective_karat
+        
+        new_stock = models.Stock(
+            id=str(uuid.uuid4()),
+            stock_tag=latest_stock.stock_tag,
+            version_no=latest_stock.version_no + 1,
+            is_latest=True,
+            updated_from_id=latest_stock.id,
+            stock_category=latest_stock.stock_category,
+            stock_type=latest_stock.stock_type,
+            product_tag=latest_stock.product_tag,
+            vvs_white=latest_stock.vvs_white,
+            hawai_vvs=latest_stock.hawai_vvs,
+            quality_cat_1=latest_stock.quality_cat_1,
+            quality_cat_2=latest_stock.quality_cat_2,
+            quality_cat_3=latest_stock.quality_cat_3,
+            karat=restored_karat,
+            cent=restored_cent,
+            current_price_per_karat=latest_stock.current_price_per_karat,
+            base_total_amount=new_base_total,
+            final_price_per_karat=latest_stock.final_price_per_karat,
+            status="AVAILABLE",
+            stock_date=latest_stock.stock_date,
+            created_by=current_user.id
+        )
+        db.add(new_stock)
+        
+        movement = models.StockKaratMovement(
+            id=str(uuid.uuid4()),
+            stock_id=new_stock.id,
+            previous_karat=latest_stock.karat,
+            previous_cent=latest_stock.cent,
+            change_karat=rejection.sold_karat,
+            change_cent=rejection.sold_cent,
+            new_karat=restored_karat,
+            new_cent=restored_cent,
+            movement_type="ADDED",
+            applicable_price_per_karat=latest_stock.final_price_per_karat or decimal.Decimal('0'),
+            reason="Rejection Deleted",
+            changed_by=current_user.id,
+            changed_at=ist_now()
+        )
+        db.add(movement)
+
+    db.delete(rejection)
+    db.commit()
+    return {"status": "success"}
+
 def _build_response(r: models.Rejection) -> schemas.RejectionResponse:
     return schemas.RejectionResponse(
         id=r.id,

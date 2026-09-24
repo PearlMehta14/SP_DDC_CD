@@ -9,6 +9,7 @@ class _BatchRowData {
   final TextEditingController price = TextEditingController();
   String? rowError;
   bool isSuccess = false;
+  bool isExisting = false;
 
   _BatchRowData(String pName) {
     productName.text = pName;
@@ -20,7 +21,7 @@ class _BatchRowData {
     price.dispose();
   }
 
-  bool get hasData => productName.text.trim().isNotEmpty && (karat.text.trim().isNotEmpty || price.text.trim().isNotEmpty);
+  bool get hasData => !isExisting && productName.text.trim().isNotEmpty && (karat.text.trim().isNotEmpty || price.text.trim().isNotEmpty);
 }
 
 const List<String> minus2Products = [
@@ -169,17 +170,13 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
 
     _batchRows = products.map((p) {
       final row = _BatchRowData(p);
-      // Pre-fill from existing stock if available
       final existing = _stocks.where((s) {
         if (s['stock_category'] != _batchCategory) return false;
         if (_batchCategory != 'EXTRA' && s['stock_type'] != _batchType) return false;
         return s['product_tag'] == p;
       });
       if (existing.isNotEmpty) {
-        final s = existing.first;
-        final kt = '${s['karat']}.${(s['cent'] ?? 0).toString().padLeft(2, '0')}';
-        row.karat.text = kt;
-        row.price.text = s['current_price_per_karat']?.toString() ?? '';
+        row.isExisting = true;
       }
       return row;
     }).toList();
@@ -372,14 +369,17 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
       animation: Listenable.merge([row.productName, row.karat, row.price]),
       builder: (context, child) {
         final bTotal = _parse(row.price) * _parse(row.karat);
+        final bgColor = row.isExisting ? Colors.grey.shade200 : Colors.white;
+        final textColor = row.isExisting ? Colors.grey : (row.isSuccess ? Colors.green : (row.rowError != null ? Colors.red : Colors.black87));
+        final statusText = row.isExisting ? 'Already in Stock' : (row.isSuccess ? 'Saved' : (row.rowError ?? ''));
         
         return Row(
           children: [
-            _buildCell(row.productName.text, width: batchColWidths['NAME']!, isEditable: true, bgColor: Colors.white, scale: scale, onTap: () => _showInputDialog('PRODUCT NAME', row.productName)),
-            _buildCell(row.karat.text, width: batchColWidths['KARAT']!, isEditable: true, scale: scale, onTap: () => _showInputDialog('KARAT', row.karat, isNumber: true)),
-            _buildCell(row.price.text, width: batchColWidths['PRICE/KT']!, isEditable: true, scale: scale, onTap: () => _showInputDialog('PRICE/KT', row.price, isNumber: true)),
-            _buildCell(bTotal.toStringAsFixed(2), width: batchColWidths['BASE TOTAL']!, bgColor: Colors.grey.shade50, scale: scale),
-            _buildCell(row.isSuccess ? 'Saved' : (row.rowError ?? ''), width: batchColWidths['STATUS']!, textColor: row.isSuccess ? Colors.green : (row.rowError != null ? Colors.red : Colors.black87), scale: scale),
+            _buildCell(row.productName.text, width: batchColWidths['NAME']!, isEditable: !row.isExisting, bgColor: bgColor, scale: scale, onTap: row.isExisting ? null : () => _showInputDialog('PRODUCT NAME', row.productName)),
+            _buildCell(row.karat.text, width: batchColWidths['KARAT']!, isEditable: !row.isExisting, bgColor: bgColor, scale: scale, onTap: row.isExisting ? null : () => _showInputDialog('KARAT', row.karat, isNumber: true)),
+            _buildCell(row.price.text, width: batchColWidths['PRICE/KT']!, isEditable: !row.isExisting, bgColor: bgColor, scale: scale, onTap: row.isExisting ? null : () => _showInputDialog('PRICE/KT', row.price, isNumber: true)),
+            _buildCell(bTotal.toStringAsFixed(2), width: batchColWidths['BASE TOTAL']!, bgColor: row.isExisting ? Colors.grey.shade300 : Colors.grey.shade50, scale: scale),
+            _buildCell(statusText, width: batchColWidths['STATUS']!, textColor: textColor, bgColor: bgColor, scale: scale),
             InkWell(
               onTap: () {
                 setState(() => _batchRows.remove(row));
