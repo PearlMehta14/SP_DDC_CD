@@ -93,10 +93,10 @@ class ApiService {
     ));
   }
 
-  Future<http.Response> put(String endpoint, Map<String, dynamic> body) async {
+  Future<http.Response> patch(String endpoint, Map<String, dynamic> body) async {
     final token = await _storage.read(key: 'jwt_token');
 
-    return _safeRequest(() => http.put(
+    return _safeRequest(() => http.patch(
       Uri.parse('$baseUrl$endpoint'),
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
@@ -106,10 +106,10 @@ class ApiService {
     ));
   }
 
-  Future<http.Response> patch(String endpoint, Map<String, dynamic> body) async {
+  Future<http.Response> put(String endpoint, Map<String, dynamic> body) async {
     final token = await _storage.read(key: 'jwt_token');
 
-    return _safeRequest(() => http.patch(
+    return _safeRequest(() => http.put(
       Uri.parse('$baseUrl$endpoint'),
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
