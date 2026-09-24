@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -54,14 +55,20 @@ class ApiService {
   /// Helper wrapper that executes HTTP requests and handles network/socket exceptions
   Future<http.Response> _safeRequest(Future<http.Response> Function() req) async {
     try {
-      return await req().timeout(const Duration(seconds: 15));
-    } on SocketException catch (_) {
+      final response = await req().timeout(const Duration(seconds: 15));
+      debugPrint('ApiService [${response.statusCode}]: ${response.request?.url}');
+      return response;
+    } on SocketException catch (e) {
+      debugPrint('ApiService SocketException: $e');
       throw Exception('Network Connectivity Error: No internet or Wi-Fi connection. Please check your network settings.');
-    } on TimeoutException catch (_) {
+    } on TimeoutException catch (e) {
+      debugPrint('ApiService TimeoutException: $e');
       throw Exception('Network Error: Connection timed out. Server is taking too long to respond. Please retry.');
-    } on http.ClientException catch (_) {
+    } on http.ClientException catch (e) {
+      debugPrint('ApiService ClientException: $e');
       throw Exception('Network Error: Cannot connect to server. Please ensure Wi-Fi or network connection is active.');
     } catch (e) {
+      debugPrint('ApiService Exception (${e.runtimeType}): $e');
       final str = e.toString().toLowerCase();
       if (str.contains('socketexception') || 
           str.contains('connection refused') || 
@@ -77,6 +84,19 @@ class ApiService {
     final token = await _storage.read(key: 'jwt_token');
 
     return _safeRequest(() => http.post(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: {
+        if (token != null) 'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    ));
+  }
+
+  Future<http.Response> put(String endpoint, Map<String, dynamic> body) async {
+    final token = await _storage.read(key: 'jwt_token');
+
+    return _safeRequest(() => http.put(
       Uri.parse('$baseUrl$endpoint'),
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
