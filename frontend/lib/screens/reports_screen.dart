@@ -171,8 +171,10 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
       final numberFormat = NumFormat.custom(formatCode: '0.00');
       final karatStyle = CellStyle(numberFormat: numberFormat);
       
+      // STOCK report: 7 columns (no STOCK TAG, no VERSION)
+      // REJECTION report: 8 columns
       final List<String> headers = _reportType == 'STOCK' 
-          ? ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'STOCK TAG', 'VERSION', 'KARAT', 'PRICE/KT', 'FINAL TOTAL', 'STATUS']
+          ? ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'KARAT', 'PRICE/KT', 'FINAL TOTAL', 'STATUS']
           : ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'SOLD', 'SOLD PRICE', 'REMAINING STOCK', 'BUYER', 'DATE'];
           
       sheet.appendRow(headers.map((e) => TextCellValue(e)).toList());
@@ -181,6 +183,11 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0)).cellStyle = headerStyle;
       }
       
+      // Running totals for STOCK report total row
+      double totalKarat = 0;
+      double totalPrice = 0;
+      double totalFinal = 0;
+
       for (int rowIndex = 0; rowIndex < _records.length; rowIndex++) {
         final r = _records[rowIndex];
         final actualRow = rowIndex + 1;
@@ -198,27 +205,34 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
           }
           
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: actualRow)).value = TextCellValue(r['product_tag']);
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: actualRow)).value = TextCellValue(r['stock_tag']);
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: actualRow)).value = IntCellValue(r['version_no'] ?? 0);
           
+          // col 3: KARAT (was col 5)
           final karatVal = _parseKarat(r['karat'], r['cent']);
-          final cellKarat = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: actualRow));
+          final cellKarat = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: actualRow));
           if (karatVal != null) {
             cellKarat.value = DoubleCellValue(karatVal);
             cellKarat.cellStyle = karatStyle;
+            totalKarat += karatVal;
           }
           
+          // col 4: PRICE/KT (was col 6)
           final priceStr = r['current_price_per_karat'];
           if (priceStr != null) {
-            sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: actualRow)).value = DoubleCellValue(double.tryParse(priceStr.toString()) ?? 0.0);
+            final pv = double.tryParse(priceStr.toString()) ?? 0.0;
+            sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: actualRow)).value = DoubleCellValue(pv);
+            totalPrice += pv;
           }
           
+          // col 5: FINAL TOTAL (was col 7)
           final totalStr = r['base_total_amount'];
           if (totalStr != null) {
-            sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: actualRow)).value = DoubleCellValue(double.tryParse(totalStr.toString()) ?? 0.0);
+            final tv = double.tryParse(totalStr.toString()) ?? 0.0;
+            sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: actualRow)).value = DoubleCellValue(tv);
+            totalFinal += tv;
           }
           
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: actualRow)).value = TextCellValue(r['status'] ?? '');
+          // col 6: STATUS (was col 8)
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: actualRow)).value = TextCellValue(r['status'] ?? '');
           
         } else {
           // REJECTION REPORT
@@ -261,6 +275,23 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
              sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: actualRow)).value = TextCellValue(AppDateFormatter.formatDateOnly(dateStr));
           }
         }
+      }
+
+      // --- TOTAL ROW for STOCK report ---
+      if (_reportType == 'STOCK') {
+        final totalRowStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ex.ExcelColor.fromHexString('#F5ECD0'),
+        );
+        final totalRow = _records.length + 1;
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: totalRow)).value = TextCellValue('TOTAL');
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: totalRow)).cellStyle = totalRowStyle;
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: totalRow)).value = DoubleCellValue(totalKarat);
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: totalRow)).cellStyle = totalRowStyle;
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: totalRow)).value = DoubleCellValue(totalPrice);
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: totalRow)).cellStyle = totalRowStyle;
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: totalRow)).value = DoubleCellValue(totalFinal);
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: totalRow)).cellStyle = totalRowStyle;
       }
       
       final bytes = excel.encode();
@@ -344,8 +375,9 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
             );
           },
           build: (pw.Context context) {
+            // STOCK report: no STOCK TAG, no VERSION
             final tableHeaders = _reportType == 'STOCK'
-                ? ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'STOCK TAG', 'VERSION', 'KARAT', 'PRICE/KT', 'FINAL TOTAL', 'STATUS']
+                ? ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'KARAT', 'PRICE/KT', 'FINAL TOTAL', 'STATUS']
                 : ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'SOLD', 'SOLD PRICE', 'REMAINING', 'BUYER', 'DATE'];
             
             final tableData = _records.map((r) {
@@ -354,8 +386,6 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
                   asciiOnly(r['stock_category'] ?? ''),
                   asciiOnly(r['stock_type'] ?? ''),
                   asciiOnly(r['product_tag'] ?? ''),
-                  asciiOnly(r['stock_tag'].toString().substring(0, 8) + '...'),
-                  asciiOnly('v${r['version_no']}'),
                   asciiOnly(_formatKarat(r['karat'], r['cent'])),
                   asciiOnly(r['current_price_per_karat']?.toString() ?? ''),
                   asciiOnly(r['base_total_amount']?.toString() ?? ''),

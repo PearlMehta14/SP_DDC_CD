@@ -737,14 +737,14 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         _buildCell(displayCat, width: colWidths['CATEGORY']!, textColor: Colors.black87, scale: scale),
         _buildCell(typeStr, width: colWidths['TYPE']!, scale: scale),
         _buildCell(displayName, width: colWidths['NAME']!, scale: scale),
-        // Double-tap karat → update karat
+        // Double-tap karat → update karat (disabled while adding stock)
         GestureDetector(
-          onDoubleTap: () => _showKaratUpdateDialog(stock, karatRaw, TextEditingController(text: karatRaw)),
+          onDoubleTap: _isAddingStock ? null : () => _showKaratUpdateDialog(stock, karatRaw, TextEditingController(text: karatRaw)),
           child: _buildCell(karatStr, width: colWidths['KARAT']!, scale: scale),
         ),
-        // Double-tap price → update price
+        // Double-tap price → update price (disabled while adding stock)
         GestureDetector(
-          onDoubleTap: () => _showPriceUpdateDialog(stock, priceStr, TextEditingController(text: priceStr)),
+          onDoubleTap: _isAddingStock ? null : () => _showPriceUpdateDialog(stock, priceStr, TextEditingController(text: priceStr)),
           child: _buildCell(priceStr, width: colWidths['PRICE/KT']!, scale: scale),
         ),
         _buildCell(stock['base_total_amount']?.toString() ?? '', width: colWidths['BASE TOTAL']!, bgColor: Colors.grey.shade50, scale: scale),

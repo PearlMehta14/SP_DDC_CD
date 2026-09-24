@@ -41,14 +41,70 @@ def create_stock(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(dependencies.get_current_user)
 ):
+    """Upsert stock: if a record already exists with the same product_tag + category + type, update it; otherwise create new."""
     price = _to_decimal(stock_in.price_per_karat)
     karat_int = stock_in.karat
     cent_int = stock_in.cent
     effective_karat = decimal.Decimal(karat_int) + decimal.Decimal(cent_int) / decimal.Decimal('100')
     calcs = calculate_stock_fields(price, effective_karat)
-
-    stock_id = str(uuid.uuid4())
     now = ist_now()
+
+    # --- UPSERT LOGIC ---
+    # Check for an existing AVAILABLE, is_latest record with the same natural key
+    existing_query = (
+        db.query(models.Stock)
+        .filter(
+            models.Stock.is_latest == True,
+            models.Stock.status == "AVAILABLE",
+            models.Stock.product_tag == stock_in.product_tag,
+            models.Stock.stock_category == stock_in.stock_category,
+        )
+    )
+    if stock_in.stock_type:
+        existing_query = existing_query.filter(models.Stock.stock_type == stock_in.stock_type)
+    else:
+        existing_query = existing_query.filter(models.Stock.stock_type == None)
+
+    existing = existing_query.first()
+
+    if existing is not None:
+        # UPDATE the existing record in-place
+        old_karat = existing.karat
+        old_cent = existing.cent
+        existing.karat = karat_int
+        existing.cent = cent_int
+        existing.current_price_per_karat = price
+        existing.base_total_amount = calcs['base_total_amount']
+        existing.final_price_per_karat = calcs['final_price_per_karat']
+
+        old_cents_total = old_karat * 100 + old_cent
+        new_cents_total = karat_int * 100 + cent_int
+        diff = new_cents_total - old_cents_total
+        movement_type = 'ADDED' if diff >= 0 else 'REMOVED'
+        change_cents_total = abs(diff)
+
+        movement = models.StockKaratMovement(
+            id=str(uuid.uuid4()),
+            stock_id=existing.id,
+            previous_karat=old_karat,
+            previous_cent=old_cent,
+            change_karat=change_cents_total // 100,
+            change_cent=change_cents_total % 100,
+            new_karat=karat_int,
+            new_cent=cent_int,
+            movement_type=movement_type,
+            applicable_price_per_karat=calcs['final_price_per_karat'] or decimal.Decimal('0'),
+            reason="Stock batch update (upsert)",
+            changed_by=current_user.id,
+            changed_at=now,
+        )
+        db.add(movement)
+        db.commit()
+        db.refresh(existing)
+        return _build_response(existing)
+
+    # --- CREATE NEW ---
+    stock_id = str(uuid.uuid4())
 
     new_stock = models.Stock(
         id=stock_id,
@@ -76,6 +132,7 @@ def create_stock(
     db.add(new_stock)
     
     movement = models.StockKaratMovement(
+        id=str(uuid.uuid4()),
         stock_id=stock_id,
         previous_karat=0,
         previous_cent=0,
@@ -95,6 +152,42 @@ def create_stock(
     db.refresh(new_stock)
     
     return _build_response(new_stock)
+
+
+@router.post("/dedup", response_model=dict)
+def delete_duplicate_stocks(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(dependencies.get_current_user)
+):
+    """
+    Delete duplicate is_latest=True stocks.
+    For each (product_tag, stock_category, stock_type) group, keep only the
+    most recently created record and mark the rest is_latest=False (soft-delete).
+    Returns a count of duplicates resolved.
+    """
+    from sqlalchemy import tuple_
+
+    # Find all is_latest records
+    all_latest = db.query(models.Stock).filter(models.Stock.is_latest == True).all()
+
+    # Group by natural key
+    seen: dict = {}  # key -> list of stocks
+    for s in all_latest:
+        key = (s.product_tag, s.stock_category, s.stock_type)
+        seen.setdefault(key, []).append(s)
+
+    resolved = 0
+    for key, stocks in seen.items():
+        if len(stocks) <= 1:
+            continue
+        # Keep the one with the latest created_at; mark others is_latest=False
+        stocks.sort(key=lambda x: x.created_at or x.stock_date, reverse=True)
+        for dup in stocks[1:]:
+            dup.is_latest = False
+            resolved += 1
+
+    db.commit()
+    return {"duplicates_resolved": resolved}
 
 @router.get("/", response_model=List[schemas.StockResponse])
 def get_stock(
