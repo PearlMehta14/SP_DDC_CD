@@ -154,41 +154,6 @@ def create_stock(
     return _build_response(new_stock)
 
 
-@router.post("/dedup", response_model=dict)
-def delete_duplicate_stocks(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(dependencies.get_current_user)
-):
-    """
-    Delete duplicate is_latest=True stocks.
-    For each (product_tag, stock_category, stock_type) group, keep only the
-    most recently created record and mark the rest is_latest=False (soft-delete).
-    Returns a count of duplicates resolved.
-    """
-    from sqlalchemy import tuple_
-
-    # Find all is_latest records
-    all_latest = db.query(models.Stock).filter(models.Stock.is_latest == True).all()
-
-    # Group by natural key
-    seen: dict = {}  # key -> list of stocks
-    for s in all_latest:
-        key = (s.product_tag, s.stock_category, s.stock_type)
-        seen.setdefault(key, []).append(s)
-
-    resolved = 0
-    for key, stocks in seen.items():
-        if len(stocks) <= 1:
-            continue
-        # Keep the one with the latest created_at; mark others is_latest=False
-        stocks.sort(key=lambda x: x.created_at or x.stock_date, reverse=True)
-        for dup in stocks[1:]:
-            dup.is_latest = False
-            resolved += 1
-
-    db.commit()
-    return {"duplicates_resolved": resolved}
-
 @router.get("/", response_model=List[schemas.StockResponse])
 def get_stock(
     q: Optional[str] = Query(None, description="Search by product tag"),
