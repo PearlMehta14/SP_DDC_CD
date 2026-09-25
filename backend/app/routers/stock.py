@@ -325,8 +325,6 @@ def create_stock_version(
         effective_karat
     )
     
-    new_status = "REMOVED" if new_cents_total == 0 else old_stock.status
-    
     new_stock = models.Stock(
         id=new_stock_id,
         stock_tag=old_stock.stock_tag,
@@ -343,10 +341,10 @@ def create_stock_version(
         quality_cat_3=old_stock.quality_cat_3,
         karat=new_karat,
         cent=new_cent,
-        current_price_per_karat=old_stock.current_price_per_karat,
+        current_price_per_karat=old_stock.current_price_per_karat if new_cents_total > 0 else decimal.Decimal('0'),
         base_total_amount=calcs['base_total_amount'],
-        final_price_per_karat=old_stock.final_price_per_karat,
-        status=new_status,
+        final_price_per_karat=old_stock.final_price_per_karat if new_cents_total > 0 else decimal.Decimal('0'),
+        status=old_stock.status,
         stock_date=old_stock.stock_date,
         created_by=current_user.id
     )
