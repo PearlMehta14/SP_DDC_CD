@@ -188,8 +188,24 @@ def get_stock(
         except decimal.InvalidOperation:
             pass
     
-    stocks = query.order_by(models.Stock.created_at.desc()).all()
+    stocks = query.order_by(models.Stock.display_order.desc(), models.Stock.created_at.desc()).all()
     return [_build_response(s) for s in stocks]
+
+@router.put("/reorder")
+def reorder_stocks(
+    req: schemas.StockReorderRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(dependencies.get_current_user)
+):
+    total = len(req.stock_ids)
+    for idx, sid in enumerate(req.stock_ids):
+        # We assign length - idx to display_order. 
+        # e.g. top item gets N, bottom item gets 1
+        stock = db.query(models.Stock).filter(models.Stock.id == sid, models.Stock.is_latest == True).first()
+        if stock:
+            stock.display_order = total - idx
+    db.commit()
+    return {"status": "success"}
 
 @router.get("/history", response_model=schemas.DailyStockHistoryResponse)
 def get_stock_history_by_date(
@@ -596,6 +612,7 @@ def _build_response(s: models.Stock) -> schemas.StockResponse:
         final_price_per_karat=_from_decimal(s.final_price_per_karat),
         status=s.status,
         stock_date=s.stock_date,
+        display_order=s.display_order,
         created_by=s.created_by,
         created_at=s.created_at,
         updated_at=s.updated_at

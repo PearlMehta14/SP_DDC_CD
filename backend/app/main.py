@@ -31,6 +31,13 @@ app.include_router(reports.router)
 
 @app.on_event("startup")
 def startup_event():
+    with engine.begin() as conn:
+        from sqlalchemy import text
+        try:
+            conn.execute(text("ALTER TABLE stocks ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0 NOT NULL"))
+        except Exception:
+            pass
+
     db = SessionLocal()
     try:
         admin_email = settings.initial_admin_email

@@ -42,6 +42,7 @@ class Stock(Base):
 
     status = Column(String, default="AVAILABLE")
     stock_date = Column(DateTime(timezone=True), nullable=False)
+    display_order = Column(Integer, default=0, nullable=False)
     created_by = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), default=ist_now)
     updated_at = Column(DateTime(timezone=True), default=ist_now, onupdate=ist_now)

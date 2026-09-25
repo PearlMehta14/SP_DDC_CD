@@ -158,6 +158,12 @@ class ApiService {
     });
   }
 
+  Future<http.Response> reorderStocks(List<String> stockIds) {
+    return put('/api/v1/stock/reorder', {
+      'stock_ids': stockIds,
+    });
+  }
+
   Future<http.Response> updateStockPrice(String id, String newPrice, {String? reason}) {
     return post('/api/v1/stock/$id/price', {
       'new_price_per_karat': newPrice,

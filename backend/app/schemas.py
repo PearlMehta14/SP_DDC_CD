@@ -82,11 +82,15 @@ class StockResponse(BaseModel):
 
     status: str
     stock_date: datetime
+    display_order: int
     created_by: str
     created_at: datetime
     updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True, "coerce_numbers_to_str": True}
+
+class StockReorderRequest(BaseModel):
+    stock_ids: List[str]
 
 class StockKaratUpdate(BaseModel):
     new_karat: str

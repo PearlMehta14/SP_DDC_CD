@@ -706,7 +706,19 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
     }
   }
 
-
+  Future<void> _reorderStocks(List<dynamic> orderedStocks) async {
+    final stockIds = orderedStocks.map((s) => s['id'].toString()).toList();
+    try {
+      final response = await apiService.reorderStocks(stockIds);
+      if (response.statusCode != 200) {
+        _showError(ApiService.extractErrorMessage(response));
+        _loadStocks();
+      }
+    } catch (e) {
+      _showError(ApiService.extractErrorMessage(e));
+      _loadStocks();
+    }
+  }
   Widget _buildFooterRow(List<dynamic> items, {double scale = 1.0}) {
     double totalKt = 0;
     double totalPrize = 0;
@@ -977,6 +989,10 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
                                     }).toList();
 
                                     allFiltered.sort((a, b) {
+                                      final dispA = a['display_order'] as int? ?? 0;
+                                      final dispB = b['display_order'] as int? ?? 0;
+                                      if (dispA != dispB) return dispB.compareTo(dispA);
+                                      
                                       final catA = a['stock_category']?.toString();
                                       final catB = b['stock_category']?.toString();
                                       
@@ -1020,7 +1036,31 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
                                       children: [
                                         const SizedBox(height: 8),
                                         _buildHeaderRow(scale: scale),
-                                        ...allFiltered.map((s) => _buildStockRow(s, scale: scale)),
+                                        Theme(
+                                          data: Theme.of(context).copyWith(
+                                            canvasColor: Colors.transparent,
+                                          ),
+                                          child: ReorderableListView(
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            buildDefaultDragHandles: false,
+                                            onReorder: (oldIndex, newIndex) {
+                                              setState(() {
+                                                if (oldIndex < newIndex) {
+                                                  newIndex -= 1;
+                                                }
+                                                final item = allFiltered.removeAt(oldIndex);
+                                                allFiltered.insert(newIndex, item);
+                                              });
+                                              _reorderStocks(allFiltered);
+                                            },
+                                            children: allFiltered.map((s) => ReorderableDragStartListener(
+                                              key: ValueKey(s['id']),
+                                              index: allFiltered.indexOf(s),
+                                              child: _buildStockRow(s, scale: scale)
+                                            )).toList(),
+                                          ),
+                                        ),
                                         if (allFiltered.isNotEmpty) _buildFooterRow(allFiltered, scale: scale),
                                         const SizedBox(height: 32),
                                         if (allFiltered.isEmpty)
