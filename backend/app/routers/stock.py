@@ -596,54 +596,26 @@ def delete_stock(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(dependencies.get_current_user)
 ):
-    stock = db.query(models.Stock).filter(models.Stock.id == stock_id, models.Stock.is_latest == True).first()
+    # Find the stock to get its stock_tag (version chain identifier)
+    stock = db.query(models.Stock).filter(models.Stock.id == stock_id).first()
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
         
-    stock.is_latest = False
-    new_stock_id = str(uuid.uuid4())
+    stock_tag = stock.stock_tag
     
-    new_stock = models.Stock(
-        id=new_stock_id,
-        stock_tag=stock.stock_tag,
-        version_no=stock.version_no + 1,
-        is_latest=True,
-        updated_from_id=stock.id,
-        stock_category=stock.stock_category,
-        stock_type=stock.stock_type,
-        product_tag=stock.product_tag,
-        vvs_white=stock.vvs_white,
-        hawai_vvs=stock.hawai_vvs,
-        quality_cat_1=stock.quality_cat_1,
-        quality_cat_2=stock.quality_cat_2,
-        quality_cat_3=stock.quality_cat_3,
-        karat=0,
-        cent=0,
-        current_price_per_karat=stock.current_price_per_karat,
-        base_total_amount=decimal.Decimal('0'),
-        final_price_per_karat=stock.final_price_per_karat,
-        status="REMOVED",
-        stock_date=stock.stock_date,
-        created_by=current_user.id
-    )
-    db.add(new_stock)
-    
-    movement = models.StockKaratMovement(
-        id=str(uuid.uuid4()),
-        stock_id=new_stock_id,
-        previous_karat=stock.karat,
-        previous_cent=stock.cent,
-        change_karat=stock.karat,
-        change_cent=stock.cent,
-        new_karat=0,
-        new_cent=0,
-        movement_type="REMOVED",
-        applicable_price_per_karat=stock.final_price_per_karat or decimal.Decimal('0'),
-        reason="Stock Deleted via UI",
-        changed_by=current_user.id,
-        changed_at=ist_now()
-    )
-    db.add(movement)
+    # 1. Get all stock IDs in this version chain
+    all_stocks_in_chain = db.query(models.Stock.id).filter(models.Stock.stock_tag == stock_tag).all()
+    chain_ids = [s.id for s in all_stocks_in_chain]
+
+    if chain_ids:
+        # 2. Delete all related history/movements/rejections
+        db.query(models.Rejection).filter(models.Rejection.stock_id.in_(chain_ids)).delete(synchronize_session=False)
+        db.query(models.StockKaratMovement).filter(models.StockKaratMovement.stock_id.in_(chain_ids)).delete(synchronize_session=False)
+        db.query(models.StockPriceHistory).filter(models.StockPriceHistory.stock_id.in_(chain_ids)).delete(synchronize_session=False)
+        
+        # 3. Delete the stock records themselves
+        db.query(models.Stock).filter(models.Stock.stock_tag == stock_tag).delete(synchronize_session=False)
+        
     db.commit()
     return {"status": "success"}
 
