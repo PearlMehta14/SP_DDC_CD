@@ -55,7 +55,7 @@ class ApiService {
   /// Helper wrapper that executes HTTP requests and handles network/socket exceptions
   Future<http.Response> _safeRequest(Future<http.Response> Function() req) async {
     try {
-      final response = await req().timeout(const Duration(seconds: 15));
+      final response = await req().timeout(const Duration(seconds: 60));
       debugPrint('ApiService [${response.statusCode}]: ${response.request?.url}');
       return response;
     } on SocketException catch (e) {
