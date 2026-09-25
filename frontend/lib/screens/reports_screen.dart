@@ -183,10 +183,10 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
       final numberFormat = NumFormat.custom(formatCode: '0.00');
       final karatStyle = CellStyle(numberFormat: numberFormat);
       
-      // STOCK report: 7 columns (no STOCK TAG, no VERSION)
+      // STOCK report: 6 columns
       // REJECTION report: 8 columns
       final List<String> headers = _reportType == 'STOCK' 
-          ? ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'KARAT', 'PRICE/KT', 'FINAL TOTAL', 'STATUS']
+          ? ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'KARAT', 'PRICE/KT', 'FINAL TOTAL']
           : ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'SOLD', 'SOLD PRICE', 'REMAINING STOCK', 'BUYER', 'DATE'];
           
       sheet.appendRow(headers.map((e) => TextCellValue(e)).toList());
@@ -218,7 +218,7 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
           
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: actualRow)).value = TextCellValue(r['product_tag']);
           
-          // col 3: KARAT (was col 5)
+          // col 3: KARAT
           final karatVal = _parseKarat(r['karat'], r['cent']);
           final cellKarat = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: actualRow));
           if (karatVal != null) {
@@ -227,7 +227,7 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
             totalKarat += karatVal;
           }
           
-          // col 4: PRICE/KT (was col 6)
+          // col 4: PRICE/KT
           final priceStr = r['current_price_per_karat'];
           if (priceStr != null) {
             final pv = double.tryParse(priceStr.toString()) ?? 0.0;
@@ -235,16 +235,13 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
             totalPrice += pv;
           }
           
-          // col 5: FINAL TOTAL (was col 7)
+          // col 5: FINAL TOTAL
           final totalStr = r['base_total_amount'];
           if (totalStr != null) {
             final tv = double.tryParse(totalStr.toString()) ?? 0.0;
             sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: actualRow)).value = DoubleCellValue(tv);
             totalFinal += tv;
           }
-          
-          // col 6: STATUS (was col 8)
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: actualRow)).value = TextCellValue(r['status'] ?? '');
           
         } else {
           // REJECTION REPORT
@@ -387,9 +384,9 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
             );
           },
           build: (pw.Context context) {
-            // STOCK report: no STOCK TAG, no VERSION
+            // STOCK report: no STOCK TAG, no VERSION, no STATUS
             final tableHeaders = _reportType == 'STOCK'
-                ? ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'KARAT', 'PRICE/KT', 'FINAL TOTAL', 'STATUS']
+                ? ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'KARAT', 'PRICE/KT', 'FINAL TOTAL']
                 : ['CATEGORY', 'TYPE', 'PRODUCT TAG', 'SOLD', 'SOLD PRICE', 'REMAINING', 'BUYER', 'DATE'];
             
             final tableData = _records.map((r) {
@@ -401,7 +398,6 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
                   asciiOnly(_formatKarat(r['karat'], r['cent'])),
                   asciiOnly(r['current_price_per_karat']?.toString() ?? ''),
                   asciiOnly(r['base_total_amount']?.toString() ?? ''),
-                  asciiOnly(r['status'] ?? ''),
                 ];
               } else {
                 final dateStr = r['rejection_date'] != null ? AppDateFormatter.formatDateOnly(r['rejection_date']) : '';

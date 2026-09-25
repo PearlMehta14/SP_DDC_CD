@@ -63,6 +63,7 @@ def get_stock_reports(
             "final_price_per_karat": str(s.final_price_per_karat) if s.final_price_per_karat is not None else None,
             "status": s.status,
             "stock_date": s.stock_date,
+            "display_order": s.display_order,
             "created_by": s.created_by,
             "created_at": s.created_at,
             "updated_at": s.updated_at
