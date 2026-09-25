@@ -271,6 +271,7 @@ def _build_response(r: models.Rejection) -> schemas.RejectionResponse:
         remaining_karat=r.remaining_karat,
         remaining_cent=r.remaining_cent,
         buyer=r.buyer,
+        out_remark=r.out_remark,
         created_by=r.created_by,
         created_at=r.created_at
     )
