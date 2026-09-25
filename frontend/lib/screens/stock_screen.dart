@@ -576,7 +576,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
 
 
   Future<void> _showKaratUpdateDialog(Map<String, dynamic> stock, String karatStr, TextEditingController controller) async {
-    final result = await showDialog<bool>(
+    final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -605,9 +605,14 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'DELETE'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('DELETE'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('CANCEL')),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => Navigator.pop(ctx, 'SAVE'),
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC5A059), foregroundColor: Colors.white),
             child: const Text('SAVE VERSION'),
           ),
@@ -615,7 +620,40 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
       ),
     );
 
-    if (result == true && mounted) {
+    if (result == 'DELETE' && mounted) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirm Delete'),
+          content: const Text('Are you sure you want to completely remove this stock?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('DELETE'),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirm == true && mounted) {
+        try {
+          final response = await apiService.deleteStock(stock['id']);
+          if (response.statusCode == 200) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stock removed successfully'), backgroundColor: Colors.green));
+            _loadStocks();
+          } else {
+            _showError(jsonDecode(response.body)['detail'] ?? 'Delete failed');
+          }
+        } catch (e) {
+          _showError(e.toString());
+        }
+      }
+      return;
+    }
+
+    if (result == 'SAVE' && mounted) {
       final newKarat = controller.text.trim();
       if (newKarat.isEmpty) return;
       try {

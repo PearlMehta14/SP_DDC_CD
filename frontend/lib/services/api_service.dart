@@ -164,6 +164,10 @@ class ApiService {
     });
   }
 
+  Future<http.Response> deleteStock(String id) {
+    return delete('/api/v1/stock/$id');
+  }
+
   Future<http.Response> updateStockPrice(String id, String newPrice, {String? reason}) {
     return post('/api/v1/stock/$id/price', {
       'new_price_per_karat': newPrice,
