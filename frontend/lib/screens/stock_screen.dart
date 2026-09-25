@@ -976,6 +976,8 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
                         if (!_isAddingStock) {
                           setState(() {
                             _isAddingStock = true;
+                            _batchCategory = _selectedCategory == 'ALL' ? 'NEW' : _selectedCategory;
+                            _batchType = _selectedType == 'ALL' ? '-2' : _selectedType;
                             _initBatchRows();
                           });
                         }
