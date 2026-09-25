@@ -719,6 +719,114 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
       _loadStocks();
     }
   }
+
+  Future<void> _showReorderDialog() async {
+    final searchLower = _searchQuery.toLowerCase();
+    List<dynamic> currentList = _stocks.where((s) {
+      if (_selectedStatus != 'ALL' && s['status'] != _selectedStatus) return false;
+      if (searchLower.isNotEmpty && !(s['product_tag']?.toString().toLowerCase().contains(searchLower) ?? false)) return false;
+      if (_selectedType != 'ALL' && s['stock_type'] != _selectedType) return false;
+      return true;
+    }).toList();
+
+    currentList.sort((a, b) {
+      final dispA = a['display_order'] as int? ?? 0;
+      final dispB = b['display_order'] as int? ?? 0;
+      if (dispA != dispB) return dispB.compareTo(dispA);
+      
+      final catA = a['stock_category']?.toString();
+      final catB = b['stock_category']?.toString();
+      
+      int catOrder(String? c) => c == 'OLD' ? 0 : (c == 'NEW' ? 1 : (c == 'EXTRA' ? 2 : 3));
+      final catCmp = catOrder(catA).compareTo(catOrder(catB));
+      if (catCmp != 0) return catCmp;
+      
+      final typeA = a['stock_type']?.toString();
+      final typeB = b['stock_type']?.toString();
+      int typeOrder(String? t) => t == '-2' ? 0 : (t == '+2' ? 1 : 2);
+      final typeCmp = typeOrder(typeA).compareTo(typeOrder(typeB));
+      if (typeCmp != 0) return typeCmp;
+      
+      int tagOrder(String? cat, String? type, String? tag) {
+        if (tag == null) return 999;
+        if (cat == 'NEW') {
+          if (type == '-2') return minus2Products.indexOf(tag) != -1 ? minus2Products.indexOf(tag) : 999;
+          if (type == '+2') return plus2Products.indexOf(tag) != -1 ? plus2Products.indexOf(tag) : 999;
+        } else if (cat == 'OLD') {
+          if (type == '-2') return oldMinus2Products.indexOf(tag) != -1 ? oldMinus2Products.indexOf(tag) : 999;
+          if (type == '+2') return oldPlus2Products.indexOf(tag) != -1 ? oldPlus2Products.indexOf(tag) : 999;
+        } else if (cat == 'EXTRA') {
+          return extraProducts.indexOf(tag) != -1 ? extraProducts.indexOf(tag) : 999;
+        }
+        return 999;
+      }
+      
+      final tagA = a['product_tag']?.toString();
+      final tagB = b['product_tag']?.toString();
+      
+      final tagIdxA = tagOrder(catA, typeA, tagA);
+      final tagIdxB = tagOrder(catB, typeB, tagB);
+      
+      if (tagIdxA != tagIdxB) return tagIdxA.compareTo(tagIdxB);
+      
+      return (tagA ?? '').compareTo(tagB ?? '');
+    });
+
+    final bool? saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Reorder Stock', style: TextStyle(fontWeight: FontWeight.bold)),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: ReorderableListView(
+                  onReorder: (oldIndex, newIndex) {
+                    setStateDialog(() {
+                      if (oldIndex < newIndex) newIndex -= 1;
+                      final item = currentList.removeAt(oldIndex);
+                      currentList.insert(newIndex, item);
+                    });
+                  },
+                  children: currentList.map((s) {
+                    final tag = s['product_tag'] ?? '--';
+                    final cat = s['stock_category'] ?? '--';
+                    final type = s['stock_type'] ?? '';
+                    final title = '$cat ${type == '-2' || type == '+2' ? type : ''} - $tag'.trim();
+                    return ListTile(
+                      key: ValueKey(s['id']),
+                      leading: const Icon(Icons.drag_handle, color: Colors.grey),
+                      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: Text('${s['karat']}.${s['cent']} KT', style: const TextStyle(fontSize: 12)),
+                      contentPadding: EdgeInsets.zero,
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('CANCEL'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC5A059), foregroundColor: Colors.white),
+                  child: const Text('SAVE ORDER'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true) {
+      await _reorderStocks(currentList);
+      _loadStocks();
+    }
+  }
   Widget _buildFooterRow(List<dynamic> items, {double scale = 1.0}) {
     double totalKt = 0;
     double totalPrize = 0;
@@ -914,21 +1022,16 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
                   ),
                 ),
                 const SizedBox(width: 16),
-                DropdownButton<String>(
-                  value: _selectedStatus,
-                  hint: const Text('Status'),
-                  isDense: true,
-                  underline: const SizedBox(),
-                  items: const [
-                    DropdownMenuItem(value: 'AVAILABLE', child: Text('Available', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'SOLD', child: Text('Sold', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'REMOVED', child: Text('Removed', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'ALL', child: Text('All', style: TextStyle(fontSize: 12))),
-                  ],
-                  onChanged: (val) {
-                    setState(() => _selectedStatus = val!);
-                    _loadStocks();
-                  },
+                ElevatedButton.icon(
+                  onPressed: _showReorderDialog,
+                  icon: const Icon(Icons.reorder, size: 16),
+                  label: const Text('Reorder List'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC5A059),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
               ],
             ),
@@ -1036,31 +1139,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
                                       children: [
                                         const SizedBox(height: 8),
                                         _buildHeaderRow(scale: scale),
-                                        Theme(
-                                          data: Theme.of(context).copyWith(
-                                            canvasColor: Colors.transparent,
-                                          ),
-                                          child: ReorderableListView(
-                                            shrinkWrap: true,
-                                            physics: const NeverScrollableScrollPhysics(),
-                                            buildDefaultDragHandles: false,
-                                            onReorder: (oldIndex, newIndex) {
-                                              setState(() {
-                                                if (oldIndex < newIndex) {
-                                                  newIndex -= 1;
-                                                }
-                                                final item = allFiltered.removeAt(oldIndex);
-                                                allFiltered.insert(newIndex, item);
-                                              });
-                                              _reorderStocks(allFiltered);
-                                            },
-                                            children: allFiltered.map((s) => ReorderableDragStartListener(
-                                              key: ValueKey(s['id']),
-                                              index: allFiltered.indexOf(s),
-                                              child: _buildStockRow(s, scale: scale)
-                                            )).toList(),
-                                          ),
-                                        ),
+                                        ...allFiltered.map((s) => _buildStockRow(s, scale: scale)),
                                         if (allFiltered.isNotEmpty) _buildFooterRow(allFiltered, scale: scale),
                                         const SizedBox(height: 32),
                                         if (allFiltered.isEmpty)
