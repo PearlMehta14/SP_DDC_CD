@@ -664,7 +664,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         final response = await apiService.updateStockVersion(stock['id'], newKarat);
         if (response.statusCode == 200) {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Karat updated successfully'), backgroundColor: Colors.green));
-          _loadStocks();
+          _loadStocks(silent: true);
         } else {
           _showError(jsonDecode(response.body)['detail'] ?? 'Update failed');
         }
@@ -734,7 +734,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         final response = await apiService.updateStockPrice(stock['id'], newPrice);
         if (response.statusCode == 200) {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Price updated successfully'), backgroundColor: Colors.green));
-          _loadStocks();
+          _loadStocks(silent: true);
         } else {
           _showError(jsonDecode(response.body)['detail'] ?? 'Update failed');
         }
@@ -813,34 +813,71 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
     final bool? saved = await showDialog<bool>(
       context: context,
       builder: (ctx) {
+        String dialogSearch = '';
         return StatefulBuilder(
           builder: (context, setStateDialog) {
+            final visibleList = currentList.where((s) {
+              if (dialogSearch.isEmpty) return true;
+              final tag = s['product_tag']?.toString().toLowerCase() ?? '';
+              return tag.contains(dialogSearch.toLowerCase());
+            }).toList();
+
             return AlertDialog(
               title: const Text('Reorder Stock', style: TextStyle(fontWeight: FontWeight.bold)),
               content: SizedBox(
                 width: double.maxFinite,
                 height: 400,
-                child: ReorderableListView(
-                  onReorder: (oldIndex, newIndex) {
-                    setStateDialog(() {
-                      if (oldIndex < newIndex) newIndex -= 1;
-                      final item = currentList.removeAt(oldIndex);
-                      currentList.insert(newIndex, item);
-                    });
-                  },
-                  children: currentList.map((s) {
-                    final tag = s['product_tag'] ?? '--';
-                    final cat = s['stock_category'] ?? '--';
-                    final type = s['stock_type'] ?? '';
-                    final title = '$cat ${type == '-2' || type == '+2' ? type : ''} - $tag'.trim();
-                    return ListTile(
-                      key: ValueKey(s['id']),
-                      leading: const Icon(Icons.drag_handle, color: Colors.grey),
-                      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: Text('${s['karat']}.${s['cent']} KT', style: const TextStyle(fontSize: 12)),
-                      contentPadding: EdgeInsets.zero,
-                    );
-                  }).toList(),
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search in reorder list...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          dialogSearch = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ReorderableListView(
+                        onReorder: (oldIndex, newIndex) {
+                          setStateDialog(() {
+                            if (oldIndex < newIndex) newIndex -= 1;
+                            final item = visibleList[oldIndex];
+                            
+                            final visibleWithoutItem = visibleList.toList()..remove(item);
+                            final insertBeforeItem = newIndex < visibleWithoutItem.length ? visibleWithoutItem[newIndex] : null;
+                            
+                            currentList.remove(item);
+                            if (insertBeforeItem != null) {
+                              final insertIdx = currentList.indexOf(insertBeforeItem);
+                              currentList.insert(insertIdx, item);
+                            } else {
+                              currentList.add(item);
+                            }
+                          });
+                        },
+                        children: visibleList.map((s) {
+                          final tag = s['product_tag'] ?? '--';
+                          final cat = s['stock_category'] ?? '--';
+                          final type = s['stock_type'] ?? '';
+                          final title = '$cat ${type == '-2' || type == '+2' ? type : ''} - $tag'.trim();
+                          return ListTile(
+                            key: ValueKey(s['id']),
+                            leading: const Icon(Icons.drag_handle, color: Colors.grey),
+                            title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            subtitle: Text('${s['karat']}.${s['cent']} KT', style: const TextStyle(fontSize: 12)),
+                            contentPadding: EdgeInsets.zero,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               actions: [
