@@ -37,6 +37,24 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
   void initState() {
     super.initState();
     _loadRejections();
+    apiService.stockRefreshTrigger.addListener(_onRefreshTrigger);
+  }
+
+  void _onRefreshTrigger() {
+    if (mounted && !_isAddingRejection) {
+      _loadRejections(showLoader: false);
+    }
+  }
+
+  @override
+  void dispose() {
+    apiService.stockRefreshTrigger.removeListener(_onRefreshTrigger);
+    _draft.date.dispose();
+    _draft.buyer.dispose();
+    _draft.soldValue.dispose();
+    _draft.soldPrice.dispose();
+    _draft.outRemark.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRejections({bool showLoader = true}) async {

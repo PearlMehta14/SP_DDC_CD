@@ -11,6 +11,22 @@ class ApiService {
   String _customBaseUrl = '';
   
   final ValueNotifier<int> stockRefreshTrigger = ValueNotifier(0);
+  Timer? _autoRefreshTimer;
+
+  ApiService() {
+    _startAutoRefresh();
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
+      stockRefreshTrigger.value++;
+    });
+  }
+
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+  }
 
   set baseUrl(String url) => _customBaseUrl = url;
 
