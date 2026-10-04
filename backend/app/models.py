@@ -104,6 +104,7 @@ class Rejection(Base):
     remaining_cent = Column(Integer, default=0)
     buyer = Column(String, nullable=True)
     out_remark = Column(String, nullable=True)
+    status = Column(String, default="ACTIVE")
     
     created_by = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), default=ist_now)

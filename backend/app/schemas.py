@@ -177,6 +177,7 @@ class RejectionResponse(BaseModel):
     remaining_cent: Optional[int] = None
     buyer: Optional[str] = None
     out_remark: Optional[str] = None
+    status: str
     created_by: str
     created_at: datetime
     

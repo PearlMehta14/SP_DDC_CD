@@ -86,7 +86,7 @@ def get_rejection_reports(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(dependencies.get_current_user)
 ):
-    query = db.query(models.Rejection)
+    query = db.query(models.Rejection).filter(models.Rejection.status != "DELETED")
     
     if stock_category and stock_category.upper() != "ALL":
         query = query.filter(models.Rejection.stock_category == stock_category.upper())
@@ -127,6 +127,7 @@ def get_rejection_reports(
             "remaining_karat": r.remaining_karat,
             "remaining_cent": r.remaining_cent,
             "buyer": r.buyer,
+            "status": r.status,
             "created_by": r.created_by,
             "created_at": r.created_at
         }

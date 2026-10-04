@@ -10,6 +10,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/api_service.dart';
+import '../services/product_order_service.dart';
 import 'stock_screen.dart';
 import '../utils/date_formatter.dart';
 class ReportsScreen extends StatefulWidget {
@@ -100,19 +101,19 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
               final typeCmp = typeOrder(typeA).compareTo(typeOrder(typeB));
               if (typeCmp != 0) return typeCmp;
               
-              int tagOrder(String? cat, String? type, String? tag) {
-                if (tag == null) return 999;
-                if (cat == 'NEW') {
-                  if (type == '-2') return minus2Products.indexOf(tag) != -1 ? minus2Products.indexOf(tag) : 999;
-                  if (type == '+2') return plus2Products.indexOf(tag) != -1 ? plus2Products.indexOf(tag) : 999;
-                } else if (cat == 'OLD') {
-                  if (type == '-2') return oldMinus2Products.indexOf(tag) != -1 ? oldMinus2Products.indexOf(tag) : 999;
-                  if (type == '+2') return oldPlus2Products.indexOf(tag) != -1 ? oldPlus2Products.indexOf(tag) : 999;
-                } else if (cat == 'EXTRA') {
-                  return extraProducts.indexOf(tag) != -1 ? extraProducts.indexOf(tag) : 999;
+                int tagOrder(String? cat, String? type, String? tag) {
+                  if (tag == null) return 999;
+                  if (cat == 'NEW') {
+                    if (type == '-2') return productOrderService.minus2Products.indexOf(tag) != -1 ? productOrderService.minus2Products.indexOf(tag) : 999;
+                    if (type == '+2') return productOrderService.plus2Products.indexOf(tag) != -1 ? productOrderService.plus2Products.indexOf(tag) : 999;
+                  } else if (cat == 'OLD') {
+                    if (type == '-2') return productOrderService.oldMinus2Products.indexOf(tag) != -1 ? productOrderService.oldMinus2Products.indexOf(tag) : 999;
+                    if (type == '+2') return productOrderService.oldPlus2Products.indexOf(tag) != -1 ? productOrderService.oldPlus2Products.indexOf(tag) : 999;
+                  } else if (cat == 'EXTRA') {
+                    return productOrderService.extraProducts.indexOf(tag) != -1 ? productOrderService.extraProducts.indexOf(tag) : 999;
+                  }
+                  return 999;
                 }
-                return 999;
-              }
               
               final tagA = a['product_tag']?.toString();
               final tagB = b['product_tag']?.toString();

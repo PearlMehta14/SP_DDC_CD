@@ -3,10 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'router.dart';
 import 'providers/auth_provider.dart';
+import 'services/product_order_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Could not load .env file: $e");
+  }
+  await productOrderService.init();
   runApp(
     const ProviderScope(
       child: MyApp(),

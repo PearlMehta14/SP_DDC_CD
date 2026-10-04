@@ -28,7 +28,9 @@ def get_dashboard_metrics(db: Session, target_date: date):
         
     # Rejections total
     from sqlalchemy.sql import func
-    total_rejection_worth = db.query(func.sum(models.Rejection.total_price)).scalar() or decimal.Decimal('0')
+    total_rejection_worth = db.query(func.sum(models.Rejection.total_price)).filter(
+        models.Rejection.status != "DELETED"
+    ).scalar() or decimal.Decimal('0')
     current_stock_worth += decimal.Decimal(total_rejection_worth)
             
     # Movements for the target date

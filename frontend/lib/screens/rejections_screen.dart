@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/product_order_service.dart';
 import 'stock_screen.dart';
 import '../utils/date_formatter.dart';
 
@@ -72,13 +73,13 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
               int tagOrder(String? cat, String? type, String? tag) {
                 if (tag == null) return 999;
                 if (cat == 'NEW') {
-                  if (type == '-2') return minus2Products.indexOf(tag) != -1 ? minus2Products.indexOf(tag) : 999;
-                  if (type == '+2') return plus2Products.indexOf(tag) != -1 ? plus2Products.indexOf(tag) : 999;
+                  if (type == '-2') return productOrderService.minus2Products.indexOf(tag) != -1 ? productOrderService.minus2Products.indexOf(tag) : 999;
+                  if (type == '+2') return productOrderService.plus2Products.indexOf(tag) != -1 ? productOrderService.plus2Products.indexOf(tag) : 999;
                 } else if (cat == 'OLD') {
-                  if (type == '-2') return oldMinus2Products.indexOf(tag) != -1 ? oldMinus2Products.indexOf(tag) : 999;
-                  if (type == '+2') return oldPlus2Products.indexOf(tag) != -1 ? oldPlus2Products.indexOf(tag) : 999;
+                  if (type == '-2') return productOrderService.oldMinus2Products.indexOf(tag) != -1 ? productOrderService.oldMinus2Products.indexOf(tag) : 999;
+                  if (type == '+2') return productOrderService.oldPlus2Products.indexOf(tag) != -1 ? productOrderService.oldPlus2Products.indexOf(tag) : 999;
                 } else if (cat == 'EXTRA') {
-                  return extraProducts.indexOf(tag) != -1 ? extraProducts.indexOf(tag) : 999;
+                  return productOrderService.extraProducts.indexOf(tag) != -1 ? productOrderService.extraProducts.indexOf(tag) : 999;
                 }
                 return 999;
               }
@@ -618,6 +619,31 @@ class _StockSelectionSheet extends StatefulWidget {
 
 class _StockSelectionSheetState extends State<_StockSelectionSheet> {
   Map<String, dynamic>? _selectedStock;
+  String _searchQuery = '';
+  late List<dynamic> _filteredStocks;
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredStocks = widget.stocks;
+  }
+
+  void _filterStocks(String query) {
+    setState(() {
+      _searchQuery = query;
+      if (query.isEmpty) {
+        _filteredStocks = widget.stocks;
+      } else {
+        final lowerQuery = query.toLowerCase();
+        _filteredStocks = widget.stocks.where((stock) {
+          final product = stock['product_tag']?.toString().toLowerCase() ?? '';
+          final category = stock['stock_category']?.toString().toLowerCase() ?? '';
+          final type = stock['stock_type']?.toString().toLowerCase() ?? '';
+          return product.contains(lowerQuery) || category.contains(lowerQuery) || type.contains(lowerQuery);
+        }).toList();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -645,12 +671,26 @@ class _StockSelectionSheetState extends State<_StockSelectionSheet> {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search Product Tag...',
+                prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              ),
+              onChanged: _filterStocks,
+            ),
+          ),
           Expanded(
             child: ListView.separated(
-              itemCount: widget.stocks.length,
+              itemCount: _filteredStocks.length,
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final stock = widget.stocks[index];
+                final stock = _filteredStocks[index];
                 final karatStr = '${stock['karat']}.${stock['cent']?.toString().padLeft(2, '0') ?? '00'} KT';
                 final category = stock['stock_category'] ?? 'EXTRA';
                 final type = stock['stock_type'] ?? '';

@@ -12,6 +12,7 @@ import 'screens/reports_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/rejections_screen.dart';
 import 'screens/logs_screen.dart';
+import 'screens/reorder_screen.dart';
 import 'providers/auth_provider.dart';
 
 import 'screens/unlock_screen.dart';
@@ -72,6 +73,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/stock',
                 builder: (context, state) => const StockScreen(),
                 routes: [
+                  GoRoute(
+                    path: 'reorder',
+                    builder: (context, state) => const ReorderScreen(),
+                  ),
                   GoRoute(
                     path: ':id',
                     builder: (context, state) {

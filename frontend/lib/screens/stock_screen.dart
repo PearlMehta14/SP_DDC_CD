@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:decimal/decimal.dart';
+import 'package:decimal/decimal.dart';
+import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
+import '../services/product_order_service.dart';
 
 class _BatchRowData {
   final TextEditingController productName = TextEditingController();
@@ -24,34 +27,7 @@ class _BatchRowData {
   bool get hasData => !isExisting && productName.text.trim().isNotEmpty && (karat.text.trim().isNotEmpty || price.text.trim().isNotEmpty);
 }
 
-const List<String> minus2Products = [
-  'Hava VVS', 'Hava Dagina', 'Hava Jew', 'Hava S Dlx', 'Hava Dlx',
-  'Air VVS', 'Air Dagina', 'Air Jew', 'Air S Dlx', 'Air Dlx',
-  'Coll VVS', 'Coll Dagina', 'Coll Jew', 'Coll S Dlx', 'Coll Dlx',
-  'Orn VVS', 'Orn Dagina', 'Orn Jew', 'Orn S Dlx', 'Orn Dlx',
-  'Super VVS', 'Super Dagina', 'Super Jew', 'Super S Dlx', 'Super Dlx',
-  'White VVS', 'White Dagina', 'White Jew'
-];
-
-const List<String> plus2Products = [
-  'Hava VVS', 'Hava Dagina', 'Hava Jew', 'Hava S Dlx', 'Hava Dlx',
-  'Air VVS', 'Air Dagina', 'Air Jew', 'Air S Dlx', 'Air Dlx',
-  'Coll VVS', 'Coll Dagina', 'Coll Jew', 'Coll S Dlx', 'Coll Dlx',
-  'Orn VVS', 'Orn Dagina', 'Orn Jew', 'Orn S Dlx', 'Orn Dlx',
-  'White VVS', 'White Dagina', 'White Jew'
-];
-
-const List<String> oldMinus2Products = [
-  'Hava 3', 'hava 4', 'hava 5', 'air 3', 'air 4', 'air 5', 'col 2', 'col 3', 'col 4', 'col 5', 'Ex 3', 'Ex 4'
-];
-
-const List<String> oldPlus2Products = [
-  'air 2', 'air 3', 'air 5', 'col 2', 'col 3', 'col 4', 'Ex 1', 'Ex 2', 'Ex 3', 'Ex 4', 'Ex 5'
-];
-
-const List<String> extraProducts = [
-  'Mix', 'Natts', 'LC 1', 'LC 2', 'LC 3', 'Bud', 'Weak', 'ws -2'
-];
+// Constants moved to ProductOrderService
 
 
 class StockScreen extends StatefulWidget {
@@ -161,11 +137,11 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
 
     List<String> products;
     if (_batchCategory == 'EXTRA') {
-      products = extraProducts;
+      products = productOrderService.extraProducts;
     } else if (_batchCategory == 'OLD') {
-      products = _batchType == '-2' ? oldMinus2Products : oldPlus2Products;
+      products = _batchType == '-2' ? productOrderService.oldMinus2Products : productOrderService.oldPlus2Products;
     } else {
-      products = _batchType == '-2' ? minus2Products : plus2Products;
+      products = _batchType == '-2' ? productOrderService.minus2Products : productOrderService.plus2Products;
     }
 
     _batchRows = products.map((p) {
@@ -744,164 +720,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
     }
   }
 
-  Future<void> _reorderStocks(List<dynamic> orderedStocks) async {
-    final stockIds = orderedStocks.map((s) => s['id'].toString()).toList();
-    try {
-      final response = await apiService.reorderStocks(stockIds);
-      if (response.statusCode != 200) {
-        _showError(ApiService.extractErrorMessage(response));
-        _loadStocks();
-      }
-    } catch (e) {
-      _showError(ApiService.extractErrorMessage(e));
-      _loadStocks();
-    }
-  }
 
-  Future<void> _showReorderDialog() async {
-    final searchLower = _searchQuery.toLowerCase();
-    List<dynamic> currentList = _stocks.where((s) {
-      if (_selectedStatus != 'ALL' && s['status'] != _selectedStatus) return false;
-      if (searchLower.isNotEmpty && !(s['product_tag']?.toString().toLowerCase().contains(searchLower) ?? false)) return false;
-      if (_selectedType != 'ALL' && s['stock_type'] != _selectedType) return false;
-      return true;
-    }).toList();
-
-    currentList.sort((a, b) {
-      final dispA = a['display_order'] as int? ?? 0;
-      final dispB = b['display_order'] as int? ?? 0;
-      if (dispA != dispB) return dispB.compareTo(dispA);
-      
-      final catA = a['stock_category']?.toString();
-      final catB = b['stock_category']?.toString();
-      
-      int catOrder(String? c) => c == 'OLD' ? 0 : (c == 'NEW' ? 1 : (c == 'EXTRA' ? 2 : 3));
-      final catCmp = catOrder(catA).compareTo(catOrder(catB));
-      if (catCmp != 0) return catCmp;
-      
-      final typeA = a['stock_type']?.toString();
-      final typeB = b['stock_type']?.toString();
-      int typeOrder(String? t) => t == '-2' ? 0 : (t == '+2' ? 1 : 2);
-      final typeCmp = typeOrder(typeA).compareTo(typeOrder(typeB));
-      if (typeCmp != 0) return typeCmp;
-      
-      int tagOrder(String? cat, String? type, String? tag) {
-        if (tag == null) return 999;
-        if (cat == 'NEW') {
-          if (type == '-2') return minus2Products.indexOf(tag) != -1 ? minus2Products.indexOf(tag) : 999;
-          if (type == '+2') return plus2Products.indexOf(tag) != -1 ? plus2Products.indexOf(tag) : 999;
-        } else if (cat == 'OLD') {
-          if (type == '-2') return oldMinus2Products.indexOf(tag) != -1 ? oldMinus2Products.indexOf(tag) : 999;
-          if (type == '+2') return oldPlus2Products.indexOf(tag) != -1 ? oldPlus2Products.indexOf(tag) : 999;
-        } else if (cat == 'EXTRA') {
-          return extraProducts.indexOf(tag) != -1 ? extraProducts.indexOf(tag) : 999;
-        }
-        return 999;
-      }
-      
-      final tagA = a['product_tag']?.toString();
-      final tagB = b['product_tag']?.toString();
-      
-      final tagIdxA = tagOrder(catA, typeA, tagA);
-      final tagIdxB = tagOrder(catB, typeB, tagB);
-      
-      if (tagIdxA != tagIdxB) return tagIdxA.compareTo(tagIdxB);
-      
-      return (tagA ?? '').compareTo(tagB ?? '');
-    });
-
-    final bool? saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        String dialogSearch = '';
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            final visibleList = currentList.where((s) {
-              if (dialogSearch.isEmpty) return true;
-              final tag = s['product_tag']?.toString().toLowerCase() ?? '';
-              return tag.contains(dialogSearch.toLowerCase());
-            }).toList();
-
-            return AlertDialog(
-              title: const Text('Reorder Stock', style: TextStyle(fontWeight: FontWeight.bold)),
-              content: SizedBox(
-                width: double.maxFinite,
-                height: 400,
-                child: Column(
-                  children: [
-                    TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Search in reorder list...',
-                        prefixIcon: const Icon(Icons.search, size: 20),
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onChanged: (val) {
-                        setStateDialog(() {
-                          dialogSearch = val;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: ReorderableListView(
-                        onReorder: (oldIndex, newIndex) {
-                          setStateDialog(() {
-                            if (oldIndex < newIndex) newIndex -= 1;
-                            final item = visibleList[oldIndex];
-                            
-                            final visibleWithoutItem = visibleList.toList()..remove(item);
-                            final insertBeforeItem = newIndex < visibleWithoutItem.length ? visibleWithoutItem[newIndex] : null;
-                            
-                            currentList.remove(item);
-                            if (insertBeforeItem != null) {
-                              final insertIdx = currentList.indexOf(insertBeforeItem);
-                              currentList.insert(insertIdx, item);
-                            } else {
-                              currentList.add(item);
-                            }
-                          });
-                        },
-                        children: visibleList.map((s) {
-                          final tag = s['product_tag'] ?? '--';
-                          final cat = s['stock_category'] ?? '--';
-                          final type = s['stock_type'] ?? '';
-                          final title = '$cat ${type == '-2' || type == '+2' ? type : ''} - $tag'.trim();
-                          return ListTile(
-                            key: ValueKey(s['id']),
-                            leading: const Icon(Icons.drag_handle, color: Colors.grey),
-                            title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            subtitle: Text('${s['karat']}.${s['cent']} KT', style: const TextStyle(fontSize: 12)),
-                            contentPadding: EdgeInsets.zero,
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('CANCEL'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC5A059), foregroundColor: Colors.white),
-                  child: const Text('SAVE ORDER'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (saved == true) {
-      await _reorderStocks(currentList);
-      _loadStocks();
-    }
-  }
   Widget _buildFooterRow(List<dynamic> items, {double scale = 1.0}) {
     double totalKt = 0;
     double totalPrize = 0;
@@ -970,6 +789,14 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.sort, color: Color(0xFFC5A059)),
+            onPressed: () {
+              context.push('/stock/reorder').then((_) => _loadStocks(silent: true));
+            },
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1098,18 +925,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
                     },
                   ),
                 ),
-                const SizedBox(width: 16),
-                ElevatedButton.icon(
-                  onPressed: _showReorderDialog,
-                  icon: const Icon(Icons.reorder, size: 16),
-                  label: const Text('Reorder List'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC5A059),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
+
               ],
             ),
           ),
@@ -1169,14 +985,10 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
                                     }).toList();
 
                                     allFiltered.sort((a, b) {
-                                      final dispA = a['display_order'] as int? ?? 0;
-                                      final dispB = b['display_order'] as int? ?? 0;
-                                      if (dispA != dispB) return dispB.compareTo(dispA);
-                                      
                                       final catA = a['stock_category']?.toString();
                                       final catB = b['stock_category']?.toString();
                                       
-                                      int catOrder(String? c) => c == 'OLD' ? 0 : (c == 'NEW' ? 1 : (c == 'EXTRA' ? 2 : 3));
+                                      int catOrder(String? c) => c == 'NEW' ? 0 : (c == 'OLD' ? 1 : (c == 'EXTRA' ? 2 : 3));
                                       final catCmp = catOrder(catA).compareTo(catOrder(catB));
                                       if (catCmp != 0) return catCmp;
                                       
@@ -1189,13 +1001,13 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
                                       int tagOrder(String? cat, String? type, String? tag) {
                                         if (tag == null) return 999;
                                         if (cat == 'NEW') {
-                                          if (type == '-2') return minus2Products.indexOf(tag) != -1 ? minus2Products.indexOf(tag) : 999;
-                                          if (type == '+2') return plus2Products.indexOf(tag) != -1 ? plus2Products.indexOf(tag) : 999;
+                                          if (type == '-2') return productOrderService.minus2Products.indexOf(tag) != -1 ? productOrderService.minus2Products.indexOf(tag) : 999;
+                                          if (type == '+2') return productOrderService.plus2Products.indexOf(tag) != -1 ? productOrderService.plus2Products.indexOf(tag) : 999;
                                         } else if (cat == 'OLD') {
-                                          if (type == '-2') return oldMinus2Products.indexOf(tag) != -1 ? oldMinus2Products.indexOf(tag) : 999;
-                                          if (type == '+2') return oldPlus2Products.indexOf(tag) != -1 ? oldPlus2Products.indexOf(tag) : 999;
+                                          if (type == '-2') return productOrderService.oldMinus2Products.indexOf(tag) != -1 ? productOrderService.oldMinus2Products.indexOf(tag) : 999;
+                                          if (type == '+2') return productOrderService.oldPlus2Products.indexOf(tag) != -1 ? productOrderService.oldPlus2Products.indexOf(tag) : 999;
                                         } else if (cat == 'EXTRA') {
-                                          return extraProducts.indexOf(tag) != -1 ? extraProducts.indexOf(tag) : 999;
+                                          return productOrderService.extraProducts.indexOf(tag) != -1 ? productOrderService.extraProducts.indexOf(tag) : 999;
                                         }
                                         return 999;
                                       }
