@@ -44,6 +44,19 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
   void initState() {
     super.initState();
     _loadReports();
+    apiService.stockRefreshTrigger.addListener(_onRefreshTrigger);
+  }
+
+  void _onRefreshTrigger() {
+    if (mounted) {
+      _loadReports(silent: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    apiService.stockRefreshTrigger.removeListener(_onRefreshTrigger);
+    super.dispose();
   }
 
   @override
@@ -483,11 +496,11 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1A1A1A),
         elevation: 0,
+        centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: _isLoading ? null : () => _loadReports(silent: true),
+            icon: const Icon(Icons.refresh, color: Color(0xFFC5A059)),
+            onPressed: () => _loadReports(),
           ),
         ],
         bottom: PreferredSize(

@@ -28,6 +28,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with AutomaticKeepAlive
   void initState() {
     super.initState();
     _fetchDashboard();
+    apiService.stockRefreshTrigger.addListener(_onRefreshTrigger);
+  }
+
+  void _onRefreshTrigger() {
+    if (mounted) {
+      _fetchDashboard(silent: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    apiService.stockRefreshTrigger.removeListener(_onRefreshTrigger);
+    super.dispose();
   }
 
   Future<void> _fetchDashboard({bool silent = false}) async {

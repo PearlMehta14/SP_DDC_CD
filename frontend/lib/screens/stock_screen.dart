@@ -61,6 +61,22 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
   void initState() {
     super.initState();
     _loadStocks();
+    apiService.stockRefreshTrigger.addListener(_onRefreshTrigger);
+  }
+
+  void _onRefreshTrigger() {
+    if (mounted && !_isAddingStock) {
+      _loadStocks(silent: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    apiService.stockRefreshTrigger.removeListener(_onRefreshTrigger);
+    for (var r in _batchRows) {
+      r.dispose();
+    }
+    super.dispose();
   }
 
   @override
@@ -231,6 +247,11 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
     }
     
     setState(() => _isSavingBatch = false);
+    
+    if (successCount > 0) {
+      apiService.stockRefreshTrigger.value++;
+    }
+    
     _loadStocks(silent: true);
     
     if (successCount == rowsToSave.length) {
@@ -617,6 +638,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         try {
           final response = await apiService.deleteStock(stock['id']);
           if (response.statusCode == 200) {
+            apiService.stockRefreshTrigger.value++;
             if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stock removed successfully'), backgroundColor: Colors.green));
             _loadStocks();
           } else {
@@ -639,6 +661,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         if (parsed == oldParsed) { _showError('No changes to save.'); return; }
         final response = await apiService.updateStockVersion(stock['id'], newKarat);
         if (response.statusCode == 200) {
+          apiService.stockRefreshTrigger.value++;
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Karat updated successfully'), backgroundColor: Colors.green));
           _loadStocks(silent: true);
         } else {
@@ -709,6 +732,7 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         if (parsed == oldParsed) { _showError('No changes to save.'); return; }
         final response = await apiService.updateStockPrice(stock['id'], newPrice);
         if (response.statusCode == 200) {
+          apiService.stockRefreshTrigger.value++;
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Price updated successfully'), backgroundColor: Colors.green));
           _loadStocks(silent: true);
         } else {
@@ -790,6 +814,10 @@ class _StockScreenState extends State<StockScreen> with AutomaticKeepAliveClient
         elevation: 0,
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFFC5A059)),
+            onPressed: () => _loadStocks(silent: false),
+          ),
           IconButton(
             icon: const Icon(Icons.sort, color: Color(0xFFC5A059)),
             onPressed: () {

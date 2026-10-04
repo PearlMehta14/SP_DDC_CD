@@ -10,6 +10,8 @@ class ApiService {
   final _storage = const FlutterSecureStorage();
   String _customBaseUrl = '';
   
+  final ValueNotifier<int> stockRefreshTrigger = ValueNotifier(0);
+
   set baseUrl(String url) => _customBaseUrl = url;
 
   /// Returns the production API Base URL from .env or fallback

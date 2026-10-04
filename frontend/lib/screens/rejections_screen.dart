@@ -220,6 +220,7 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
           _draft.stock = null;
         });
         
+        apiService.stockRefreshTrigger.value++;
         await _loadRejections(showLoader: false);
       } else {
         _showError(ApiService.extractErrorMessage(response));
@@ -265,6 +266,7 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
     try {
       final response = await apiService.delete('/api/v1/rejections/$rejId');
       if (response.statusCode == 200) {
+        apiService.stockRefreshTrigger.value++;
         await _loadRejections();
       } else {
         _showError(ApiService.extractErrorMessage(response));
@@ -547,6 +549,12 @@ class _RejectionsScreenState extends State<RejectionsScreen> with AutomaticKeepA
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFFC5A059)),
+            onPressed: () => _loadRejections(showLoader: true),
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -625,7 +633,49 @@ class _StockSelectionSheetState extends State<_StockSelectionSheet> {
   @override
   void initState() {
     super.initState();
+    _sortStocks(widget.stocks);
     _filteredStocks = widget.stocks;
+  }
+
+  void _sortStocks(List<dynamic> stocks) {
+    stocks.sort((a, b) {
+      final catA = a['stock_category']?.toString();
+      final catB = b['stock_category']?.toString();
+      
+      int catOrder(String? c) => c == 'NEW' ? 0 : (c == 'OLD' ? 1 : (c == 'EXTRA' ? 2 : 3));
+      final catCmp = catOrder(catA).compareTo(catOrder(catB));
+      if (catCmp != 0) return catCmp;
+      
+      final typeA = a['stock_type']?.toString();
+      final typeB = b['stock_type']?.toString();
+      int typeOrder(String? t) => t == '-2' ? 0 : (t == '+2' ? 1 : 2);
+      final typeCmp = typeOrder(typeA).compareTo(typeOrder(typeB));
+      if (typeCmp != 0) return typeCmp;
+      
+      int tagOrder(String? cat, String? type, String? tag) {
+        if (tag == null) return 999;
+        if (cat == 'NEW') {
+          if (type == '-2') return productOrderService.minus2Products.indexOf(tag) != -1 ? productOrderService.minus2Products.indexOf(tag) : 999;
+          if (type == '+2') return productOrderService.plus2Products.indexOf(tag) != -1 ? productOrderService.plus2Products.indexOf(tag) : 999;
+        } else if (cat == 'OLD') {
+          if (type == '-2') return productOrderService.oldMinus2Products.indexOf(tag) != -1 ? productOrderService.oldMinus2Products.indexOf(tag) : 999;
+          if (type == '+2') return productOrderService.oldPlus2Products.indexOf(tag) != -1 ? productOrderService.oldPlus2Products.indexOf(tag) : 999;
+        } else if (cat == 'EXTRA') {
+          return productOrderService.extraProducts.indexOf(tag) != -1 ? productOrderService.extraProducts.indexOf(tag) : 999;
+        }
+        return 999;
+      }
+      
+      final tagA = a['product_tag']?.toString();
+      final tagB = b['product_tag']?.toString();
+      
+      final tagIdxA = tagOrder(catA, typeA, tagA);
+      final tagIdxB = tagOrder(catB, typeB, tagB);
+      
+      if (tagIdxA != tagIdxB) return tagIdxA.compareTo(tagIdxB);
+      
+      return (tagA ?? '').compareTo(tagB ?? '');
+    });
   }
 
   void _filterStocks(String query) {
@@ -641,6 +691,7 @@ class _StockSelectionSheetState extends State<_StockSelectionSheet> {
           final type = stock['stock_type']?.toString().toLowerCase() ?? '';
           return product.contains(lowerQuery) || category.contains(lowerQuery) || type.contains(lowerQuery);
         }).toList();
+        _sortStocks(_filteredStocks);
       }
     });
   }
