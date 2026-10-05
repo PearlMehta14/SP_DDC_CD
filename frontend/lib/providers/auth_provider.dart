@@ -62,7 +62,12 @@ class AuthNotifier extends Notifier<AuthState> {
       final user = results[0] as Map<String, dynamic>?;
       
       // Check security settings
-      final pin = await _storage.read(key: 'app_pin');
+      String? pin;
+      try {
+        pin = await _storage.read(key: 'app_pin');
+      } catch (e) {
+        await _storage.deleteAll();
+      }
       final hasPin = pin != null && pin.isNotEmpty;
       
       // If user is logged in and PIN is set, lock the app
@@ -85,7 +90,12 @@ class AuthNotifier extends Notifier<AuthState> {
     try {
       final user = await authService.login(email, password);
       
-      final pin = await _storage.read(key: 'app_pin');
+      String? pin;
+      try {
+        pin = await _storage.read(key: 'app_pin');
+      } catch (e) {
+        await _storage.deleteAll();
+      }
       final hasPin = pin != null && pin.isNotEmpty;
       final isLocked = hasPin;
       
@@ -119,7 +129,13 @@ class AuthNotifier extends Notifier<AuthState> {
   }
   
   Future<bool> unlock(String enteredPin) async {
-    final pin = await _storage.read(key: 'app_pin');
+    String? pin;
+    try {
+      pin = await _storage.read(key: 'app_pin');
+    } catch (e) {
+      await _storage.deleteAll();
+      return false;
+    }
     if (pin == enteredPin) {
       state = state.copyWith(isLocked: false);
       return true;
@@ -133,7 +149,13 @@ class AuthNotifier extends Notifier<AuthState> {
   }
   
   Future<bool> changePin(String currentPin, String newPin) async {
-    final pin = await _storage.read(key: 'app_pin');
+    String? pin;
+    try {
+      pin = await _storage.read(key: 'app_pin');
+    } catch (e) {
+      await _storage.deleteAll();
+      return false;
+    }
     if (pin == currentPin) {
       await _storage.write(key: 'app_pin', value: newPin);
       return true;
@@ -142,7 +164,13 @@ class AuthNotifier extends Notifier<AuthState> {
   }
   
   Future<bool> removePin(String currentPin) async {
-    final pin = await _storage.read(key: 'app_pin');
+    String? pin;
+    try {
+      pin = await _storage.read(key: 'app_pin');
+    } catch (e) {
+      await _storage.deleteAll();
+      return false;
+    }
     if (pin == currentPin) {
       await _storage.delete(key: 'app_pin');
       await _storage.delete(key: 'use_biometrics');

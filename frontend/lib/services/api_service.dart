@@ -98,8 +98,17 @@ class ApiService {
     }
   }
 
+  Future<String?> _getToken() async {
+    try {
+      return await _storage.read(key: 'jwt_token');
+    } catch (e) {
+      await _storage.deleteAll();
+      return null;
+    }
+  }
+
   Future<http.Response> post(String endpoint, Map<String, dynamic> body) async {
-    final token = await _storage.read(key: 'jwt_token');
+    final token = await _getToken();
 
     return _safeRequest(() => http.post(
       Uri.parse('$baseUrl$endpoint'),
@@ -112,7 +121,7 @@ class ApiService {
   }
 
   Future<http.Response> patch(String endpoint, Map<String, dynamic> body) async {
-    final token = await _storage.read(key: 'jwt_token');
+    final token = await _getToken();
 
     return _safeRequest(() => http.patch(
       Uri.parse('$baseUrl$endpoint'),
@@ -125,7 +134,7 @@ class ApiService {
   }
 
   Future<http.Response> put(String endpoint, Map<String, dynamic> body) async {
-    final token = await _storage.read(key: 'jwt_token');
+    final token = await _getToken();
 
     return _safeRequest(() => http.put(
       Uri.parse('$baseUrl$endpoint'),
@@ -138,7 +147,7 @@ class ApiService {
   }
 
   Future<http.Response> delete(String endpoint) async {
-    final token = await _storage.read(key: 'jwt_token');
+    final token = await _getToken();
 
     return _safeRequest(() => http.delete(
       Uri.parse('$baseUrl$endpoint'),
@@ -150,7 +159,7 @@ class ApiService {
   }
 
   Future<http.Response> get(String endpoint, {Map<String, String>? queryParameters}) async {
-    final token = await _storage.read(key: 'jwt_token');
+    final token = await _getToken();
     final uri = Uri.parse('$baseUrl$endpoint').replace(queryParameters: queryParameters);
 
     return _safeRequest(() => http.get(

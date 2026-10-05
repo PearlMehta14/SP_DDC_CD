@@ -34,10 +34,23 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>?> getCurrentUser() async {
-    final token = await _storage.read(key: 'jwt_token');
+    String? token;
+    try {
+      token = await _storage.read(key: 'jwt_token');
+    } catch (e) {
+      await _storage.deleteAll();
+      return null;
+    }
+    
     if (token == null) return null;
 
-    final loginTimeStr = await _storage.read(key: 'login_time');
+    String? loginTimeStr;
+    try {
+      loginTimeStr = await _storage.read(key: 'login_time');
+    } catch (e) {
+      // ignore
+    }
+    
     if (loginTimeStr != null) {
       final loginTime = DateTime.tryParse(loginTimeStr);
       if (loginTime != null) {
