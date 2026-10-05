@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/product_order_service.dart';
+import '../services/api_service.dart';
 
 class ReorderScreen extends StatefulWidget {
   const ReorderScreen({super.key});
@@ -12,11 +14,27 @@ class _ReorderScreenState extends State<ReorderScreen> {
   String _selectedCategory = 'NEW';
   String _selectedType = '-2';
   List<String> _currentList = [];
+  List<dynamic> _apiStocks = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadList();
+    _fetchStocks();
+  }
+
+  Future<void> _fetchStocks() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await apiService.get('/api/v1/stock/?status=AVAILABLE');
+      if (response.statusCode == 200) {
+        _apiStocks = jsonDecode(response.body);
+      }
+    } catch (_) {}
+    if (mounted) {
+      _loadList();
+      setState(() => _isLoading = false);
+    }
   }
 
   void _loadList() {
@@ -27,6 +45,17 @@ class _ReorderScreenState extends State<ReorderScreen> {
         _currentList = List.from(_selectedType == '-2' ? productOrderService.oldMinus2Products : productOrderService.oldPlus2Products);
       } else if (_selectedCategory == 'EXTRA') {
         _currentList = List.from(productOrderService.extraProducts);
+      }
+      
+      // Merge missing tags from API
+      for (var s in _apiStocks) {
+        if (s['stock_category'] == _selectedCategory && 
+            (_selectedCategory == 'EXTRA' || s['stock_type'] == _selectedType)) {
+          final tag = s['product_tag']?.toString().trim();
+          if (tag != null && tag.isNotEmpty && !_currentList.contains(tag)) {
+            _currentList.add(tag);
+          }
+        }
       }
     });
   }
@@ -47,6 +76,7 @@ class _ReorderScreenState extends State<ReorderScreen> {
     } else if (_selectedCategory == 'EXTRA') {
       await productOrderService.saveExtra(_currentList);
     }
+    apiService.stockRefreshTrigger.value++;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order saved successfully')));
     }
@@ -146,25 +176,27 @@ class _ReorderScreenState extends State<ReorderScreen> {
             ),
           ),
           Expanded(
-            child: ReorderableListView(
-              onReorder: (oldIndex, newIndex) {
-                setState(() {
-                  if (oldIndex < newIndex) {
-                    newIndex -= 1;
-                  }
-                  final item = _currentList.removeAt(oldIndex);
-                  _currentList.insert(newIndex, item);
-                });
-              },
-              children: [
-                for (int i = 0; i < _currentList.length; i++)
-                  ListTile(
-                    key: ValueKey('$_selectedCategory-$_selectedType-${_currentList[i]}'),
-                    title: Text(_currentList[i]),
-                    trailing: const Icon(Icons.drag_handle),
-                  ),
-              ],
-            ),
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFFC5A059)))
+              : ReorderableListView(
+                  onReorder: (oldIndex, newIndex) {
+                    setState(() {
+                      if (oldIndex < newIndex) {
+                        newIndex -= 1;
+                      }
+                      final item = _currentList.removeAt(oldIndex);
+                      _currentList.insert(newIndex, item);
+                    });
+                  },
+                  children: [
+                    for (int i = 0; i < _currentList.length; i++)
+                      ListTile(
+                        key: ValueKey('$_selectedCategory-$_selectedType-${_currentList[i]}'),
+                        title: Text(_currentList[i]),
+                        trailing: const Icon(Icons.drag_handle),
+                      ),
+                  ],
+                ),
           ),
         ],
       ),
