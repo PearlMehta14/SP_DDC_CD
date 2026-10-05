@@ -82,35 +82,6 @@ class _ReorderScreenState extends State<ReorderScreen> {
     }
   }
 
-  void _addNewProduct() {
-    final TextEditingController controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New Product'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'Product Name'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                setState(() {
-                  _currentList.add(controller.text.trim());
-                });
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -199,11 +170,6 @@ class _ReorderScreenState extends State<ReorderScreen> {
                 ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addNewProduct,
-        backgroundColor: const Color(0xFFC5A059),
-        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
