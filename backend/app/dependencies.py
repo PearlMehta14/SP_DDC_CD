@@ -9,14 +9,15 @@ from . import models
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
-anon_key = settings.supabase_publishable_key if settings.supabase_publishable_key else "dummy_key"
-admin_key = settings.supabase_secret_key if settings.supabase_secret_key else anon_key
+supabase_url_clean = settings.supabase_url.strip() if settings.supabase_url else ""
+anon_key = settings.supabase_publishable_key.strip() if settings.supabase_publishable_key else "dummy_key"
+admin_key = settings.supabase_secret_key.strip() if settings.supabase_secret_key else anon_key
 
 _httpx_client = httpx.Client(http2=False)
 _client_options = ClientOptions(httpx_client=_httpx_client)
 
 supabase_admin: Client = create_client(
-    settings.supabase_url, 
+    supabase_url_clean, 
     admin_key,
     options=_client_options
 )
@@ -27,7 +28,7 @@ print("SECRET:", bool(settings.supabase_secret_key), settings.supabase_secret_ke
 print("SECRET LENGTH:", len(settings.supabase_secret_key) if settings.supabase_secret_key else 0)
 print("==============================")
 supabase_client: Client = create_client(
-    settings.supabase_url, 
+    supabase_url_clean, 
     anon_key,
     options=_client_options
 )
